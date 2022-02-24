@@ -100,7 +100,29 @@ class laneFollower(object):
     # output            - none
     # speed             - general speed of bot
 
-    
+    def get_largest_block(self,center_id, left_id, right_id):
+        # If there is no block of either color, set that id really high - e.g 50
+        if center_id == -1:
+            center_id = 50
+        if left_id == -1:
+            left_id = 50
+        if right_id == -1:
+            right_id = 50
+
+        # group all the marker ids together
+        array = [center_id, left_id, right_id]
+
+        # set initial id to -1, this is the value returned then we know that the camera cannot see anything.
+        largest_block = -1
+
+        # If color markers are recognised (i.e. min number in array is smaller than 50)
+        if array[array.index(min(array))] < 50:     # find the id of the largest block
+            largest_block = array.index(min(array))
+
+        # return the id of the largest block: 0-center, 1-left, 2-right, -1- no marker recognised
+        return  largest_block
+
+
 
     def follow(self, speed):
 
@@ -122,7 +144,8 @@ class laneFollower(object):
             servo_pos = 0
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
             self.getBlockParams(line_markers[0])
-
+            largest_block = self.get_largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
+            print("the largest block is: ", largest_block) #  0-center, 1-left, 2-right, -1 no marker recognised
             if centerLineBlock >= 0: # drive while we see a line
             ###Level 1### Please insert code here to compute the center line angular error as derived from the pixel error, then use this value
             ### to come up with a steering command to send to self.drive(speed, steering) function. Remember the steering takes values between -1 and 1.
