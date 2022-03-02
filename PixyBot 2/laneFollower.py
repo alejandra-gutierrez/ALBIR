@@ -122,9 +122,8 @@ class laneFollower(object):
         # return the id of the largest block: 0-center, 1-left, 2-right, -1- no marker recognised
         return  largest_block
 
-
-
     def follow(self, speed):
+        # todo: It seems that the speed has not been involved in the code.
 
         self.bot.setServoPosition(0)
         self.drive(0, 0)
@@ -157,7 +156,6 @@ class laneFollower(object):
                 derivative = heading_error - last_error
                 integral = integral + heading_error
                 lineSteering = heading_error * kp + derivative * kd + integral * ki
-                integral =
                 last_error = heading_error
                 ###Level 2### Please insert code here to follow the lane when the red line is obstructed. How would you make sure the pixyBot still stays on the road?
                 ### Come up with a steering command to send to self.drive(speed, steering) function

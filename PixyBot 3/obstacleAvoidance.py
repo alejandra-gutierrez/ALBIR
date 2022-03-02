@@ -29,7 +29,7 @@ import math
 #   stopAtStationaryObstacles   - move bot along a lane until it encounters an obstacle
 #   avoidStationaryObstacles    - move bot along a lane and move to avoid stationary obstacles
 class obstacleAvoidance(object):
-    def __init__(self, bot=pixyBot(0), cam=pixyCam()):
+    def __init__(self, bot: pixyBot = pixyBot(0), cam: pixyCam = pixyCam()):
         self.bot = bot
 
         self.bot = bot
@@ -90,8 +90,8 @@ class obstacleAvoidance(object):
 
     # output            - tracking error in ([deg]) and new camera angle in ([deg]) (tuple), or -1 if error
     # blockIdx          - index of block in block list that you want to track with the camera
-    def visTrack(self, blockIdx): # Get pixycam to rotate to track an object
-        if blockIdx < 0: # do nothing when block doesn't exist
+    def visTrack(self, blockIdx):  # Get pixycam to rotate to track an object
+        if blockIdx < 0:  # do nothing when block doesn't exist
             self.bot.setServoPosition(0)
             return 0, 0
         else:
@@ -104,6 +104,7 @@ class obstacleAvoidance(object):
     # output            - none
     # speed             - general speed of bot
     def stopAtStationaryObstacles(self, speed):
+        """We need to stop the vehicle at the given distance (15 - 50 cm) and angular position (-50 and 50). """
 
         self.bot.setServoPosition(0)  # set servo to centre
         self.drive(0, 0)  # set racer to stop
@@ -120,25 +121,58 @@ class obstacleAvoidance(object):
             if not getBlockParamsSuccessMark:
                 print("Cannot get the obstacle information!")
 
-            # todo: Level 1 Set up an if statement to set targetSpeed = 0 when you detect an obstacle,
+            #  Level 1 Set up an if statement to set targetSpeed = 0 when you detect an obstacle,
             #  and move targetSpeed = speed otherwise
             targetSpeed = speed
             if obstacleBlock == 4:
-                # Set the drive speed to zero and no bias for the right wheel
-                self.drive(0, 0)
+                # Level 2 Modify your if statement to set targetSpeed = 0 when you detect a obstacle at a specific
+                #  distance.
+                # Level 3 -  Modify your if statement to set targetSpeed = 0 when you detect a obstacle at within a
+                #  distance and a frontal angular space.
+                distance = self.__cal_distance__(block_idx=obstacleBlock)
+                angle = self.__cal_angle__(block_idx=obstacleBlock)
+                if 15 <= distance <= 50 and -50 <= angle <= 50:
+                    # Set the drive speed to zero and no bias for the right wheel
+                    targetSpeed = 0
+                    self.drive(targetSpeed, 0)
+                elif distance < 15:
+                    print("Warning! The distance is too small.")
+                else:
+                    print("The distance is too long!")
             else:
-                # todo: What if we wanna turn right of left
+                # todo: How could we import the lane follower?
                 targetSpeed = speed
 
-            # todo: Level 2 Modify your if statement to set targetSpeed = 0 when you detect a obstacle at a specific
-            #  distance.
-
-            # todo: Level 3 -  Modify your if statement to set targetSpeed = 0 when you detect a obstacle at within a
-            #  distance and a frontal angular space.
-
-
+            # todo: How could we specify the `steering`?
             self.drive(targetSpeed, steering)
         return
+
+    def __cal_distance__(self, block_idx: int) -> float:
+        """Calculate the distance between the obstacle and the robot.
+
+        Here we are going to use focal length to calculate the distance.
+        1. Using F = (P * D) / W, where P is the apparent width in pixels, D is the known distance, W is the known
+        width.
+        2. Using D = (W * F) / P to gain the distance.
+        """
+        F = 0.28                                    # [pixel] focal length
+        W = 4                                       # [cm], the width of the obstacle
+        new_block = self.cam.newBlocks[block_idx]
+        D_width = (W * F) / new_block.m_width       # [cm]
+
+        return D_width
+
+    def __cal_angle__(self, block_idx: int) -> float:
+        """Calculate the angle.
+
+        Note: The camera is ever-changing or not? or should we correct the camera when running?
+
+        """
+        theta1_pixel = self.cam.newBlocks[block_idx].m_x - self.cam.pixyCenterX     # error in pixels
+        theta_1 = -(theta1_pixel / self.cam.pixyMaxX * self.cam.pixyX_FoV)          # error converted to angle
+        theta = self.bot.servo.lastPosition
+
+        return theta - theta_1
 
     # output            - none
     # speed             - general speed of bot
@@ -150,9 +184,9 @@ class obstacleAvoidance(object):
             self.cam.getLatestBlocks()
             self.getBlockParams(self.cam.isInView(self.obstacleID))
 
-            ###Level 4### Please insert code here to derive non-zero obstacleSteering and keep the robot running
-            ### You need to first identify the obstacle and decide whether you want to visaully track it. Then you use what you learn from Level 1,2 and 3 to implement detection and steering.
-            ### Hint: self.cam.newBlocks and self.cam.oldBlocks are sorted by decreasing pixel size. Do you always want to be focused on the largest object?
+            #todo: Level 4### Please insert code here to derive non-zero obstacleSteering and keep the robot running
+            # You need to first identify the obstacle and decide whether you want to visaully track it. Then you use what you learn from Level 1,2 and 3 to implement detection and steering.
+            # Hint: self.cam.newBlocks and self.cam.oldBlocks are sorted by decreasing pixel size. Do you always want to be focused on the largest object?
 
             lineSteering = 0
             obstacleSteering = 0

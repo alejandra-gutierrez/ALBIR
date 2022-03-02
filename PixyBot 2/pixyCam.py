@@ -62,7 +62,6 @@ class pixyCam(object):
          blocks are already sorted by pixel size (largest to smallest).
         """
 
-
         self.oldCount = self.pixy.ccc_get_blocks(self.numBlocks, self.newBlocks)
         self.newCount = self.pixy.ccc_get_blocks(self.numBlocks, self.newBlocks)
 
