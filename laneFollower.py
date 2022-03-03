@@ -52,7 +52,6 @@ class laneFollower(object):
             bias = 1
         if bias < -1:
             bias = -1
-
         maxDrive = 1 # set safety limit for the motors
 
         totalDrive = drive * maxDrive # the throttle of the car
@@ -97,9 +96,6 @@ class laneFollower(object):
             newServoPosition = self.bot.setServoPosition(visTargetAngle)
             return visAngularError, newServoPosition
 
-    # output            - none
-    # speed             - general speed of bot
-
     def get_largest_block(self,center_id, left_id, right_id):
         # If there is no block of either color, set that id really high - e.g 50
         if center_id == -1:
@@ -123,18 +119,12 @@ class laneFollower(object):
         return  largest_block
 
 
-
+    # output            - none
+    # speed             - general speed of bot
     def follow(self, speed):
 
-        self.bot.setServoPosition(0)
-        self.drive(0, 0)
-
-        kp = 0.015 #Proportional
-        kd = 0 #Derivative
-        ki = 0 #Integral
-        integral = 0
-        last_error = 0
-
+        self.bot.setServoPosition(0) # set servo to centre
+        self.drive(0, 0) # set racer to stop
         while True:
             self.cam.getLatestBlocks()
             centerLineBlock = self.cam.isInView(self.centerLineID) # try find centreline
@@ -145,23 +135,32 @@ class laneFollower(object):
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
             self.getBlockParams(line_markers[0])
             largest_block = self.get_largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
-            print("the largest block is: ", largest_block) #  0-center, 1-left, 2-right, -1 no marker recognised
+            print("the largest block is: ", largest_block) 
+            line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
+            self.getBlockParams(line_markers[0])
+            print(line_markers)
             if centerLineBlock >= 0: # drive while we see a line
-            ###Level 1### Please insert code here to compute the center line angular error as derived from the pixel error, then use this value
-            ### to come up with a steering command to send to self.drive(speed, steering) function. Remember the steering takes values between -1 and 1.
+                ###Level 1### Please insert code here to compute the center line angular error as derived from the pixel error, then use this value
+                ### to come up with a steering command to send to self.drive(speed, steering) function. Remember the steering takes values between -1 and 1.
                 CL_angular_error = self.blockAngle[-1] + correction
-
-                # Account for the rotation of the camera ? To be discussed
+                # Account for the rotation of the camera
                 camera_rotation = -(servo_pos/50) * 25
-                heading_error = CL_angular_error + camera_rotation
-                derivative = heading_error - last_error
-                integral = integral + heading_error
-                lineSteering = heading_error * kp + derivative * kd + integral * ki
-                integral =
-                last_error = heading_error
+                angle = CL_angular_error + camera_rotation
+                lineSteering = angle * 0.015
+#                print('self.blockAngle[-1]: ', self.blockAngle[-1])
+#                print('CL_angular_error: ', CL_angular_error)
+#                print('angle: ', angle)
+#                print('speed: ', speed)
+#                print('lineSteering: ', lineSteering)
+                #sleep(0.1)
+                self.drive(speed, lineSteering)
+                ###
+
                 ###Level 2### Please insert code here to follow the lane when the red line is obstructed. How would you make sure the pixyBot still stays on the road?
                 ### Come up with a steering command to send to self.drive(speed, steering) function
 
-            else: # stop the racer and wait for new blocks
+                ###
+
+            else: # stop the racer and wait for new blocks 
                 self.drive(0, 0)
         return
