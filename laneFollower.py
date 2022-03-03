@@ -119,6 +119,17 @@ class laneFollower(object):
         return  largest_block
 
 
+    def followTarget (self, speed):
+        correction = 0
+        servo_pos = 0
+
+        CL_angular_error = self.blockAngle[-1] + correction
+        camera_rotation = -(servo_pos/50) * 25 # Account for the rotation of the camera
+        angle = CL_angular_error + camera_rotation
+        lineSteering = angle * 0.015
+        self.drive(speed, lineSteering)
+
+
     # output            - none
     # speed             - general speed of bot
     def follow(self, speed):
@@ -137,30 +148,22 @@ class laneFollower(object):
             largest_block = self.get_largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
             print("the largest block is: ", largest_block) 
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
+            print("line_markers: ", line_markers)
             self.getBlockParams(line_markers[0])
-            print(line_markers)
+
             if centerLineBlock >= 0: # drive while we see a line
-                ###Level 1### Please insert code here to compute the center line angular error as derived from the pixel error, then use this value
-                ### to come up with a steering command to send to self.drive(speed, steering) function. Remember the steering takes values between -1 and 1.
-                CL_angular_error = self.blockAngle[-1] + correction
-                # Account for the rotation of the camera
-                camera_rotation = -(servo_pos/50) * 25
-                angle = CL_angular_error + camera_rotation
-                lineSteering = angle * 0.015
-#                print('self.blockAngle[-1]: ', self.blockAngle[-1])
-#                print('CL_angular_error: ', CL_angular_error)
-#                print('angle: ', angle)
-#                print('speed: ', speed)
-#                print('lineSteering: ', lineSteering)
-                #sleep(0.1)
-                self.drive(speed, lineSteering)
-                ###
+                self.getBlockParams(line_markers[0])
+                self.followTarget(speed)
 
-                ###Level 2### Please insert code here to follow the lane when the red line is obstructed. How would you make sure the pixyBot still stays on the road?
-                ### Come up with a steering command to send to self.drive(speed, steering) function
+            elif leftLineBlock >=0:
+                self.getBlockParams(line_markers[1])
+                self.followTarget(speed)
 
-                ###
+            elif rightLineBlock >=0:
+                self.getBlockParams(line_markers[2])
+                self.followTarget(speed)
 
-            else: # stop the racer and wait for new blocks 
+            else: # stop the racer and wait for new blocks
                 self.drive(0, 0)
+
         return
