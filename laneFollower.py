@@ -119,9 +119,8 @@ class laneFollower(object):
         return  largest_block
 
 
-    def followTarget (self, speed):
+    def followTarget (self, speed, servo_pos):
         correction = 0
-        servo_pos = 0
 
         CL_angular_error = self.blockAngle[-1] + correction
         camera_rotation = -(servo_pos/50) * 25 # Account for the rotation of the camera
@@ -151,19 +150,21 @@ class laneFollower(object):
             print("line_markers: ", line_markers)
             self.getBlockParams(line_markers[0])
 
-            if centerLineBlock >= 0: # drive while we see a line
+            if centerLineBlock >= 0:
                 self.getBlockParams(line_markers[0])
-                self.followTarget(speed)
+                servo_error, servo_position  =  self.visTrack(0)
+                self.followTarget(speed, servo_position)
 
             elif leftLineBlock >=0:
                 self.getBlockParams(line_markers[1])
-                self.followTarget(speed)
+                servo_error, servo_position  = self.visTrack(1)
+                self.followTarget(speed, servo_position)
 
             elif rightLineBlock >=0:
                 self.getBlockParams(line_markers[2])
-                self.followTarget(speed)
+                servo_error, servo_position  = self.visTrack(2)
+                self.followTarget(speed, servo_position)
 
             else: # stop the racer and wait for new blocks
                 self.drive(0, 0)
-
         return
