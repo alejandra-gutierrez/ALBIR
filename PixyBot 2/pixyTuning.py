@@ -62,16 +62,20 @@ class pixyTuning(object):
 
         print("Please start the target tracking video")
         while not self.cam.isBiggestSig(self.calibrationID):
+            print("Wait for the biggest one!")
             self.cam.getLatestBlocks()
 
         tLost = time() + 2
 
-        # track the min and max position of the servo, making sure the error between camera angle and square is not too big
+        # track the min and max position of the servo, making sure the error between camera angle and square is not too
+        # big
         while time() < tLost:
+            print("Getting the largest block ......")
             while self.cam.isBiggestSig(self.calibrationID):
                 # track the calibration target
                 error, servoNewPos = self.updateServo()
-
+                # todo: Should the error be a very large negative value?
+                print("Error: ", error, " ---- Servo Pos: ", servoNewPos)
                 # update min and max position of servo
                 if error < 20:
                     if servoNewPos < self.minAngle:
@@ -106,6 +110,7 @@ class pixyTuning(object):
         print("Calibration success! Testing begins when target square appears...")
 
         # look in the general direction of the target start point
+        print("Turn to the left side ....")
         self.bot.setServoPosition(self.maxAngle)
 
         # wait for a targetID block to appear

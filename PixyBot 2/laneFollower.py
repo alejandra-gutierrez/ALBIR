@@ -3,10 +3,11 @@
 ## made by HTL, LH, DK
 ## last edited Daniel Ko 22/02/2021
 
+from time import time
+
 from pixyBot import pixyBot
 from pixyCam import pixyCam
-from time import time
-import math
+
 
 # laneFollower class: has a bunch of convinient functions for navigation
 #
@@ -34,9 +35,9 @@ class laneFollower(object):
         self.bot = bot
         self.cam = cam
 
-        self.centerLineID   = 1
-        self.leftLineID     = 2
-        self.rightLineID    = 3
+        self.centerLineID = 1
+        self.leftLineID = 2
+        self.rightLineID = 3
 
         # tracking parameters variables
         nObservations = 20
@@ -47,17 +48,17 @@ class laneFollower(object):
     # output            - none
     # drive             - desired general bot speed (-1~1)
     # bias              - ratio of drive speed that is used to turn right (-1~1)
-    def drive(self, drive, bias): # Differential drive function
+    def drive(self, drive, bias):  # Differential drive function
         if bias > 1:
             bias = 1
         if bias < -1:
             bias = -1
 
-        maxDrive = 1 # set safety limit for the motors
+        maxDrive = 1  # set safety limit for the motors
 
-        totalDrive = drive * maxDrive # the throttle of the car
-        diffDrive = bias * totalDrive # set how much throttle goes to steering
-        straightDrive = totalDrive - abs(diffDrive) # the rest for driving forward (or backward)
+        totalDrive = drive * maxDrive  # the throttle of the car
+        diffDrive = bias * totalDrive  # set how much throttle goes to steering
+        straightDrive = totalDrive - abs(diffDrive)  # the rest for driving forward (or backward)
 
         lDrive = straightDrive + diffDrive
         rDrive = straightDrive - diffDrive
@@ -66,13 +67,15 @@ class laneFollower(object):
     # output            - -1 if error
     # blockIdx          - index of block in block list that you want to save parameters for
     def getBlockParams(self, blockIdx):
-        if (self.cam.newCount-1) < blockIdx or blockIdx < 0: # do nothing when block doesn't exist
+        if (self.cam.newCount - 1) < blockIdx or blockIdx < 0:  # do nothing when block doesn't exist
             return -1
         else:
-            pixelSize = self.cam.newBlocks[blockIdx].m_width;
-            angleSize = pixelSize/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular size of block
-            pixelError = self.cam.newBlocks[blockIdx].m_x -  self.cam.pixyCenterX
-            angleError = pixelError/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular error of block relative to front
+            pixelSize = self.cam.newBlocks[blockIdx].m_width
+            # get angular size of block
+            angleSize = pixelSize / self.cam.pixyMaxX * self.cam.pixyX_FoV
+            pixelError = self.cam.newBlocks[blockIdx].m_x - self.cam.pixyCenterX
+            # get angular error of block relative to front
+            angleError = pixelError / self.cam.pixyMaxX * self.cam.pixyX_FoV
 
             # save params
             self.blockSize.append(angleSize)
@@ -86,21 +89,23 @@ class laneFollower(object):
 
     # output            - tracking error in ([deg]) and new camera angle in ([deg]) (tuple), or -1 if error
     # blockIdx          - index of block in block list that you want to track with the camera
-    def visTrack(self, blockIdx): # Get pixycam to rotate to track an object
-        if blockIdx < 0: # do nothing when block doesn't exist
+    def visTrack(self, blockIdx):  # Get pixycam to rotate to track an object
+        # todo: what is the meaning of blockIdx here? should it be the ID of different color?
+        if blockIdx < 0:  # do nothing when block doesn't exist
             self.bot.setServoPosition(0)
             return -1
         else:
-            pixelError =  self.cam.newBlocks[blockIdx].m_x - self.cam.pixyCenterX # error in pixels
-            visAngularError = -(pixelError/self.cam.pixyMaxX*self.cam.pixyX_FoV) # error converted to angle
-            visTargetAngle = self.bot.servo.lastPosition + self.bot.gimbal.update(visAngularError) # error relative to pixycam angle
+            """
+            If we want to check the largest block of the ID 
+            """
+            pixelError = self.cam.newBlocks[blockIdx].m_x - self.cam.pixyCenterX  # error in pixels
+            visAngularError = -(pixelError / self.cam.pixyMaxX * self.cam.pixyX_FoV)  # error converted to angle
+            visTargetAngle = self.bot.servo.lastPosition + self.bot.gimbal.update(
+                visAngularError)  # error relative to pixycam angle
             newServoPosition = self.bot.setServoPosition(visTargetAngle)
             return visAngularError, newServoPosition
 
-    # output            - none
-    # speed             - general speed of bot
-
-    def get_largest_block(self,center_id, left_id, right_id):
+    def get_largest_block(self, center_id, left_id, right_id):
         # If there is no block of either color, set that id really high - e.g 50
         if center_id == -1:
             center_id = 50
@@ -116,50 +121,81 @@ class laneFollower(object):
         largest_block = -1
 
         # If color markers are recognised (i.e. min number in array is smaller than 50)
-        if array[array.index(min(array))] < 50:     # find the id of the largest block
+        if array[array.index(min(array))] < 50:  # find the id of the largest block
             largest_block = array.index(min(array))
 
         # return the id of the largest block: 0-center, 1-left, 2-right, -1- no marker recognised
-        return  largest_block
+        return largest_block
+
+    def followTarget(self, speed, servo_position):
+        correction = 0
+
+        # todo: why do you get the last one of the blockAngle (i.e., angular error)?
+        CL_angular_error = self.blockAngle[-1] + correction
+        camera_rotation = -(servo_position / 50) * 25  # Account for the rotation of the camera
+        angle = CL_angular_error + servo_position
+        lineSteering = angle * 0.015
+        self.drive(speed, lineSteering)
 
     def follow(self, speed):
-        # todo: It seems that the speed has not been involved in the code.
+        """
+        1. Use function `self.cam.isInView(ID_marker)` to gain the corresponding blockIdx (i.e., the index of in the
+        newBlocks in PixyCam).
+        2. Use function `self.getBlockParams(blockIdx)` to update the block parameters, including blockSize (
+        angleSize, i.e., the angle that can cover all target),
+        blockAngle(angle_error, i.e., the target position relative to the center of the camera) and frameTimes().
+        3. Use function `self.visTrack(blockIdx=blockIdx)` to gain the error and new position of the servo.
+        Meanwhile, these two values are for previous ID_marker.
+        """
 
-        self.bot.setServoPosition(0)
-        self.drive(0, 0)
-
-        kp = 0.015 #Proportional
-        kd = 0 #Derivative
-        ki = 0 #Integral
-        integral = 0
-        last_error = 0
+        self.bot.setServoPosition(0)  # set servo to centre
+        self.drive(0, 0)  # set racer to stop
 
         while True:
+            # update the cam vie
             self.cam.getLatestBlocks()
-            centerLineBlock = self.cam.isInView(self.centerLineID) # try find centreline
+
+            # Try to find the corresponding block
+            centerLineBlock = self.cam.isInView(self.centerLineID)
+            if centerLineBlock != 1:
+                print("Cannot detect the center red line!")
             leftLineBlock = self.cam.isInView(self.leftLineID)
+            if leftLineBlock != 2:
+                print("Cannot detect the left line!")
             rightLineBlock = self.cam.isInView(self.rightLineID)
+            if rightLineBlock != 3:
+                print("Cannot detect the right line!")
+
             correction = 0
             servo_pos = 0
+            # todo: why do we need update the blockParams here?
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
+            print("line_markers: ", line_markers)
             self.getBlockParams(line_markers[0])
             largest_block = self.get_largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
-            print("the largest block is: ", largest_block) #  0-center, 1-left, 2-right, -1 no marker recognised
-            if centerLineBlock >= 0: # drive while we see a line
-            ###Level 1### Please insert code here to compute the center line angular error as derived from the pixel error, then use this value
-            ### to come up with a steering command to send to self.drive(speed, steering) function. Remember the steering takes values between -1 and 1.
-                CL_angular_error = self.blockAngle[-1] + correction
+            print("the largest block is: ", largest_block)
+            self.getBlockParams(line_markers[0])
 
-                # Account for the rotation of the camera ? To be discussed
-                camera_rotation = -(servo_pos/50) * 25
-                heading_error = CL_angular_error + camera_rotation
-                derivative = heading_error - last_error
-                integral = integral + heading_error
-                lineSteering = heading_error * kp + derivative * kd + integral * ki
-                last_error = heading_error
-                ###Level 2### Please insert code here to follow the lane when the red line is obstructed. How would you make sure the pixyBot still stays on the road?
-                ### Come up with a steering command to send to self.drive(speed, steering) function
+            # fixme: should not we focus on the central line?
+            if centerLineBlock >= 0:
+                self.getBlockParams(line_markers[0])
+                servo_error, servo_position = self.visTrack(blockIdx=centerLineBlock)
+                # servo_error, servo_position = self.visTrack(blockIdx=0)
+                self.followTarget(speed, servo_position)
 
-            else: # stop the racer and wait for new blocks
+            elif leftLineBlock >= 0:
+                self.getBlockParams(line_markers[1])
+                servo_error, servo_position = self.visTrack(blockIdx=leftLineBlock)
+                # servo_error, servo_position = self.visTrack(blockIdx=1)
+                self.followTarget(speed, servo_position)
+
+            elif rightLineBlock >= 0:
+                self.getBlockParams(line_markers[2])
+                servo_error, servo_position = self.visTrack(blockIdx=rightLineBlock)
+                # servo_error, servo_position = self.visTrack(blockIdx=2)
+                self.followTarget(speed, servo_position)
+
+            else:  # stop the racer and wait for new blocks
                 self.drive(0, 0)
+
         return

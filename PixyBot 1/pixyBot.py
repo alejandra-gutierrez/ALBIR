@@ -42,7 +42,7 @@ class Servo(object):
 
     # output            - current camera servo angle in ([deg]) (-80~80)
     # position          - desired camera servo angle (does not include correction) (-80~80)
-    def setPosition(self, position):
+    def setPosition(self, position) -> int:
         position = self.correction + position
         if position < -80:
             position = -80
