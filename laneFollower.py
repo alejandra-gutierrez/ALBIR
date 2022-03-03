@@ -107,7 +107,6 @@ class laneFollower(object):
 
         # group all the marker ids together
         array = [center_id, left_id, right_id]
-
         # set initial id to -1, this is the value returned then we know that the camera cannot see anything.
         largest_block = -1
 
@@ -119,15 +118,14 @@ class laneFollower(object):
         return  largest_block
 
 
-    def followTarget (self, speed, servo_pos):
+    def followTarget (self, speed, servo_position):
         correction = 0
 
         CL_angular_error = self.blockAngle[-1] + correction
         camera_rotation = -(servo_pos/50) * 25 # Account for the rotation of the camera
-        angle = CL_angular_error + camera_rotation
+        angle = CL_angular_error + servo_position
         lineSteering = angle * 0.015
         self.drive(speed, lineSteering)
-
 
     # output            - none
     # speed             - general speed of bot
@@ -145,7 +143,7 @@ class laneFollower(object):
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
             self.getBlockParams(line_markers[0])
             largest_block = self.get_largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
-            print("the largest block is: ", largest_block) 
+            print("the largest block is: ", largest_block)
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
             print("line_markers: ", line_markers)
             self.getBlockParams(line_markers[0])
@@ -167,4 +165,5 @@ class laneFollower(object):
 
             else: # stop the racer and wait for new blocks
                 self.drive(0, 0)
+
         return
