@@ -3,6 +3,7 @@
 ## made by HTL, LH, DK
 ## last edited Daniel Ko 22/02/2020
 
+from curses import KEY_PPAGE
 from pixyBot import pixyBot
 from pixyCam import pixyCam
 from laneFollower import laneFollower
@@ -122,16 +123,6 @@ class obstacleAvoidance(object):
             newServoPosition = self.bot.setServoPosition(visTargetAngle)
             return visAngularError, newServoPosition
 
-    def followTarget(self, speed, servo_position):
-        correction = 0
-
-        CL_angular_error = self.blockAngleCenter[-1] + correction
-        #camera_rotation = -(servo_pos/50) * 25 # Account for the rotation of the camera
-        angle = CL_angular_error +servo_position
-        lineSteering = angle*0.005
-        #lineSteering = 0
-        self.drive(speed,-lineSteering)
-
     # output            - none
     # speed             - general speed of bot
     def stopAtStationaryObstacles(self, speed):
@@ -146,7 +137,7 @@ class obstacleAvoidance(object):
             finish = False
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
-                #print(self.blockDistance[-1])
+                print(self.blockDistance[-1])
                 if self.blockDistance[-1] <= 2.0:
                     close = True
                     while True:
@@ -156,7 +147,7 @@ class obstacleAvoidance(object):
                             self.drive(0.6, 0.4)
                         else:
                             self.drive(0.4, -0.4)
-                        if servoPos > 30 or servoPos < -50: #trying tracking centerline now
+                        if servoPos > 40 or servoPos < -50: 
                             finish = True
                             break    
                     
@@ -167,10 +158,9 @@ class obstacleAvoidance(object):
                 centerLineBlock = self.cam.isInView(self.centerLineID)
                 if centerLineBlock >= 0:
                     self.getCenterBlockParams(centerLineBlock)
-                    servo_error, servo_position  =  self.visTrack(self.centerLineID)
-                    self.followTarget(speed, servo_position)
-                else:
-                    self.drive(0,0)
+                    servo_error, servo_position  =  self.visTrack(centerLineBlock)
+                    bias = -servo_position*0.01
+                    self.drive(speed, bias)
 
 
         return
@@ -248,19 +238,28 @@ class obstacleAvoidance(object):
                         servoError,servoPos = self.visTrack(obstacleBlock)
                         print(servoPos)
                         if servoPos > 0:
-                            self.drive(0.4, 0.5)
+                            value = 1
+                            self.drive(0.6, 0.4)
                         else:
+                            value = 2
                             self.drive(0.4, -0.4)
-                        if servoPos > 50 or servoPos < -50:
+                        if servoPos > 40 or servoPos < -50: 
+                            if value == 1:
+                                self.bot.setMotorSpeeds(0.4, 0.6, 0.8)
+                            elif value == 2:
+                                self.bot.setMotorSpeeds(0.6, 0.4, 0.8)
+                            self.getCenterBlockParams(centerLineBlock)
+                            servo_error, servo_position  =  self.visTrack(centerLineBlock)
                             close = False
-                            break
+                            break 
                         
                 
             if not close:
                 centerLineBlock = self.cam.isInView(self.centerLineID)
                 if centerLineBlock >= 0:
                     self.getCenterBlockParams(centerLineBlock)
-                    servo_error, servo_position  =  self.visTrack(self.centerLineID)
-                    self.followTarget(speed, servo_position)
+                    servo_error, servo_position  =  self.visTrack(centerLineBlock)
+                    bias = -servo_position*0.01
+                    self.drive(speed, bias)
 
         return
