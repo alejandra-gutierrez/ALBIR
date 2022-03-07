@@ -48,6 +48,7 @@ class obstacleAvoidance(object):
         self.frameTimes = [float('nan') for i in range(nObservations)]
         self.blockSize = [float('nan') for i in range(nObservations)]
         self.blockAngle = [float('nan') for i in range(nObservations)]
+        self.blockAngleCenter = [float('nan') for i in range(nObservations)]
         self.blockDistance = [float('nan') for i in range(nObservations)]
         self.focalLength = 2.8
 
@@ -76,10 +77,8 @@ class obstacleAvoidance(object):
         if (self.cam.newCount-1) < blockIdx or blockIdx < 0: # do nothing when block doesn't exist
             return -1
         else:
-            pixelSize = self.cam.newBlocks[blockIdx].m_width;
-            #if pixelSize < 50:
-            #    pixelSize = 55
-            distance = (self.focalLength*60)/pixelSize
+            pixelSize = self.cam.newBlocks[blockIdx].m_height;
+            distance = (self.focalLength*140)/pixelSize
             #distance = 2*2*300/pixelSize
             angleSize = pixelSize/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular size of block
             pixelError = self.cam.newBlocks[blockIdx].m_x -  self.cam.pixyCenterX
@@ -94,6 +93,21 @@ class obstacleAvoidance(object):
             self.blockSize.pop(0)
             self.blockAngle.pop(0)
             self.frameTimes.pop(0)
+    
+    def getCenterBlockParams(self, blockIdx):
+        if (self.cam.newCount-1) < blockIdx or blockIdx < 0: # do nothing when block doesn't exist
+            return -1
+        else:
+            pixelSize = self.cam.newBlocks[blockIdx].m_width;
+            #print(pixelSize)
+            distance = (self.focalLength*65)/pixelSize
+            angleSize = pixelSize/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular size of block
+            pixelError = self.cam.newBlocks[blockIdx].m_x -  self.cam.pixyCenterX
+            angleError = pixelError/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular error of block relative to front
+
+            
+            self.blockAngleCenter.append(angleError)
+            self.blockAngleCenter.pop(0)
 
     # output            - tracking error in ([deg]) and new camera angle in ([deg]) (tuple), or -1 if error
     # blockIdx          - index of block in block list that you want to track with the camera
@@ -108,41 +122,56 @@ class obstacleAvoidance(object):
             newServoPosition = self.bot.setServoPosition(visTargetAngle)
             return visAngularError, newServoPosition
 
-    def centreTrack(self, speed):
-        centerLineBlock = self.cam.isInView(self.centerLineID)
-        if centerLineBlock >= 0: # drive while we see a line
-            CL_angular_error = self.blockAngle[-1] + 0
-            # Account for the rotation of the camera ? To be discussed
-            camera_rotation = -(0/50) * 25
-            angle = CL_angular_error + camera_rotation
-            lineSteering = angle * 0.015
-            #sleep(0.1)
-            self.drive(speed, lineSteering)
-        else:
-            self.drive(0, 0)
+    def followTarget(self, speed, servo_position):
+        correction = 0
+
+        CL_angular_error = self.blockAngleCenter[-1] + correction
+        #camera_rotation = -(servo_pos/50) * 25 # Account for the rotation of the camera
+        angle = CL_angular_error +servo_position
+        lineSteering = angle*0.005
+        #lineSteering = 0
+        self.drive(speed,-lineSteering)
 
     # output            - none
     # speed             - general speed of bot
     def stopAtStationaryObstacles(self, speed):
 
         self.bot.setServoPosition(0) # set servo to centre
-        self.drive(0, 0) # set racer to stop
-
         while True:
             self.cam.getLatestBlocks()
             centerLineBlock = self.cam.isInView(self.centerLineID)
             obstacleBlock = self.cam.isInView(self.obstacleID) 
-            targetSpeed = 0
-            
+            speed = 0.4
+            close = False
+            finish = False
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
-                if self.blockDistance[-1] <= 2:
-                    servoError,servoPos = self.visTrack(obstacleBlock)
-                    print(servoPos)
-                    #targetSpeed = 0
-                    #break
-        
-            self.drive(targetSpeed, 0)
+                #print(self.blockDistance[-1])
+                if self.blockDistance[-1] <= 2.0:
+                    close = True
+                    while True:
+                        servoError,servoPos = self.visTrack(obstacleBlock)
+                        print(servoPos)
+                        if servoPos > 0:
+                            self.drive(0.6, 0.4)
+                        else:
+                            self.drive(0.4, -0.4)
+                        if servoPos > 30 or servoPos < -50: #trying tracking centerline now
+                            finish = True
+                            break    
+                    
+            if finish:
+                break
+                
+            if not close:
+                centerLineBlock = self.cam.isInView(self.centerLineID)
+                if centerLineBlock >= 0:
+                    self.getCenterBlockParams(centerLineBlock)
+                    servo_error, servo_position  =  self.visTrack(self.centerLineID)
+                    self.followTarget(speed, servo_position)
+                else:
+                    self.drive(0,0)
+
 
         return
 
@@ -150,7 +179,7 @@ class obstacleAvoidance(object):
     # speed             - general speed of bot
     def avoidStationaryObstacles(self, speed):
 
-        self.bot.setServoPosition(-10)
+        #self.bot.setServoPosition(-10)
 
         #while True:
         #    self.cam.getLatestBlocks()
@@ -166,39 +195,72 @@ class obstacleAvoidance(object):
             #steering = obstacleSteering + lineSteering # we set the final steering as a linear combination of the obstacle steering and center line steering - but it's all up to you!
             #self.drive(targetSpeed, steering)
             ###
-        count = 0
+        #count = 0
+        #while True:
+        #    self.cam.getLatestBlocks()
+        #    centerLineBlock = self.cam.isInView(self.centerLineID)
+        #    obstacleBlock = self.cam.isInView(self.obstacleID) 
+            #targetSpeed = 0.2
+        #    speed = 0.4
+        #    if obstacleBlock >= 0:
+        #        self.getBlockParams(obstacleBlock)
+        #        if count == 0 and self.blockDistance[-1] > 3.2:
+        #            stop = 2
+        #        elif count == 0 and self.blockDistance[-1] <= 3.2:
+        #            stop = 1.5
+        #        print(self.blockDistance[-1])
+        #        count += 1
+        #        if mean(self.blockDistance[-6:-1]) <= stop:
+        #            servoError,servoPos = self.visTrack(obstacleBlock)
+        #            print(servoPos)
+        #            if servoPos +10.3 >= 0: #obstacle is on the left
+        #                self.bot.setMotorSpeeds(0.4, 0.2, 0.8)
+        #                self.bot.setMotorSpeeds(0.1, 0.4, 0.5)
+        #                self.bot.setMotorSpeeds(0.2, 0.2, 0.6)
+                        #print('done')
+        #                self.centreTrack(0.2)
+        #                continue
+        #            elif servoPos - 5 < 0: #obstacle is on the right
+        #                self.bot.setMotorSpeeds(0.2, 0.4, 1)
+        #                self.bot.setMotorSpeeds(0.3, 0.1, 0.5)
+        #                self.bot.setMotorSpeeds(0.2, 0.2, 0.6)
+        #                self.centreTrack(0.2)
+        #                continue
+
+        #    self.centreTrack(speed)
+            #self.drive(speed, 0)
+        
+        self.bot.setServoPosition(0) # set servo to centre
         while True:
             self.cam.getLatestBlocks()
             centerLineBlock = self.cam.isInView(self.centerLineID)
             obstacleBlock = self.cam.isInView(self.obstacleID) 
-            #targetSpeed = 0.2
             speed = 0.4
+            close = False
+            finish = False
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
-                if count == 0 and self.blockDistance[-1] > 3.2:
-                    stop = 2
-                elif count == 0 and self.blockDistance[-1] <= 3.2:
-                    stop = 1.5
                 print(self.blockDistance[-1])
-                count += 1
-                if mean(self.blockDistance[-6:-1]) <= stop:
-                    servoError,servoPos = self.visTrack(obstacleBlock)
-                    print(servoPos)
-                    if servoPos +10.3 >= 0: #obstacle is on the left
-                        self.bot.setMotorSpeeds(0.4, 0.2, 0.8)
-                        self.bot.setMotorSpeeds(0.1, 0.4, 0.5)
-                        self.bot.setMotorSpeeds(0.2, 0.2, 0.6)
-                        #print('done')
-                        self.centreTrack(0.2)
-                        continue
-                    elif servoPos - 5 < 0: #obstacle is on the right
-                        self.bot.setMotorSpeeds(0.2, 0.4, 1)
-                        self.bot.setMotorSpeeds(0.3, 0.1, 0.5)
-                        self.bot.setMotorSpeeds(0.2, 0.2, 0.6)
-                        self.centreTrack(0.2)
-                        continue
-
-            self.centreTrack(speed)
-            #self.drive(speed, 0)
+                if self.blockDistance[-1] <= 2.0:
+                    print('yay')
+                    close = True
+                    while True:
+                        servoError,servoPos = self.visTrack(obstacleBlock)
+                        print(servoPos)
+                        if servoPos > 0:
+                            self.drive(0.4, 0.5)
+                        else:
+                            self.drive(0.4, -0.4)
+                        if servoPos > 50 or servoPos < -50:
+                            close = False
+                            break
+                        
+                
+            if not close:
+                centerLineBlock = self.cam.isInView(self.centerLineID)
+                if centerLineBlock >= 0:
+                    self.getCenterBlockParams(centerLineBlock)
+                    servo_error, servo_position  =  self.visTrack(self.centerLineID)
+                    self.followTarget(speed, servo_position)
 
         return
