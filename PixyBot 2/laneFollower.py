@@ -90,7 +90,6 @@ class laneFollower(object):
     # output            - tracking error in ([deg]) and new camera angle in ([deg]) (tuple), or -1 if error
     # blockIdx          - index of block in block list that you want to track with the camera
     def visTrack(self, blockIdx):  # Get pixycam to rotate to track an object
-        # todo: what is the meaning of blockIdx here? should it be the ID of different color?
         if blockIdx < 0:  # do nothing when block doesn't exist
             self.bot.setServoPosition(0)
             return -1
@@ -103,7 +102,7 @@ class laneFollower(object):
             visTargetAngle = self.bot.servo.lastPosition + self.bot.gimbal.update(
                 visAngularError)  # error relative to pixycam angle
             newServoPosition = self.bot.setServoPosition(visTargetAngle)
-            return visAngularError, newServoPosition
+            return visAngularError, newServoPosition, pixelError
 
     def get_largest_block(self, center_id, left_id, right_id):
         # If there is no block of either color, set that id really high - e.g 50
@@ -127,15 +126,22 @@ class laneFollower(object):
         # return the id of the largest block: 0-center, 1-left, 2-right, -1- no marker recognised
         return largest_block
 
-    def followTarget(self, speed, servo_position):
-        correction = 0
+    def map_error(self, mapVal, minIn = -158, maxIn = 158, minOut = -1, maxOut = 1):
+        """This is going to be used in mapping the pixel error to non-dimensional error.
 
-        # todo: why do you get the last one of the blockAngle (i.e., angular error)?
-        CL_angular_error = self.blockAngle[-1] + correction
-        camera_rotation = -(servo_position / 50) * 25  # Account for the rotation of the camera
-        angle = CL_angular_error + servo_position
-        lineSteering = angle * 0.015
-        self.drive(speed, lineSteering)
+        Args:
+            mapVal (_type_): _description_
+            minIn (int, optional): _description_. Defaults to -158.
+            maxIn (int, optional): _description_. Defaults to 158.
+            minOut (int, optional): _description_. Defaults to -1.
+            maxOut (int, optional): _description_. Defaults to 1.
+
+        Returns:
+            _type_: float. 
+        """
+        true_error =(((mapVal - minIn)*(maxOut - minOut))/(maxIn - minIn)) + minOut
+        return true_error
+
 
     def follow(self, speed):
         """
@@ -151,51 +157,83 @@ class laneFollower(object):
         self.bot.setServoPosition(0)  # set servo to centre
         self.drive(0, 0)  # set racer to stop
 
+        self.kp = 0.015
+        self.kd = 0
+        self.ki = 0.005
+        integral_error = 0
+        pre_error = 0
+
+        i += 0
         while True:
             # update the cam vie
             self.cam.getLatestBlocks()
 
             # Try to find the corresponding block
             centerLineBlock = self.cam.isInView(self.centerLineID)
-            if centerLineBlock != 1:
-                print("Cannot detect the center red line!")
+            # if centerLineBlock == -1:
+            #     print("Cannot detect the center red line ---- ", i)
             leftLineBlock = self.cam.isInView(self.leftLineID)
-            if leftLineBlock != 2:
-                print("Cannot detect the left line!")
+            # if leftLineBlock == -1:
+            #     print("Cannot detect the left line --- ", i)
             rightLineBlock = self.cam.isInView(self.rightLineID)
-            if rightLineBlock != 3:
-                print("Cannot detect the right line!")
+            # if rightLineBlock == -1:
+            #     print("Cannot detect the right line --- ", i)
 
-            correction = 0
-            servo_pos = 0
             # todo: why do we need update the blockParams here?
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
-            print("line_markers: ", line_markers)
-            self.getBlockParams(line_markers[0])
-            largest_block = self.get_largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
-            print("the largest block is: ", largest_block)
-            self.getBlockParams(line_markers[0])
 
-            # fixme: should not we focus on the central line?
             if centerLineBlock >= 0:
+                # If we detect the red line, we would follow it
+                print("Detect the center red line ---- ", i)
+
                 self.getBlockParams(line_markers[0])
-                servo_error, servo_position = self.visTrack(blockIdx=centerLineBlock)
-                # servo_error, servo_position = self.visTrack(blockIdx=0)
-                self.followTarget(speed, servo_position)
+                servo_error, servo_position, piexel_error = self.visTrack(blockIdx=centerLineBlock)
+
+                # mapping the error, i.e., -25 to 25
+                cur_error = self.map_error(piexel_error)
+                bias, integral_error = self.predict_pid(cur_error, integral_error)
+                print("Non-dimensional error: ", cur_error)
+
+                self.drive(speed, bias)
 
             elif leftLineBlock >= 0:
+                print("Detect the left line --- ", i)
+
                 self.getBlockParams(line_markers[1])
-                servo_error, servo_position = self.visTrack(blockIdx=leftLineBlock)
-                # servo_error, servo_position = self.visTrack(blockIdx=1)
-                self.followTarget(speed, servo_position)
+                servo_error, servo_position, piexel_error = self.visTrack(blockIdx=leftLineBlock)
+                cur_error = self.map_error(piexel_error)
+                bias, integral_error = self.predict_pid(cur_error, integral_error)
+                print("Non-dimensional error: ", cur_error)
+
+                self.drive(speed, bias)
+                
 
             elif rightLineBlock >= 0:
-                self.getBlockParams(line_markers[2])
-                servo_error, servo_position = self.visTrack(blockIdx=rightLineBlock)
-                # servo_error, servo_position = self.visTrack(blockIdx=2)
-                self.followTarget(speed, servo_position)
+                print("Detect the right line --- ", i)
 
+                self.getBlockParams(line_markers[2])
+                servo_error, servo_position, piexel_error = self.visTrack(blockIdx=rightLineBlock)
+                cur_error = self.map_error(piexel_error)
+                bias, integral_error = self.predict_pid(cur_error, integral_error)
+                print("Non-dimensional error: ", cur_error)
+
+                self.drive(speed, bias)
+                
+                
             else:  # stop the racer and wait for new blocks
                 self.drive(0, 0)
 
+            # update index
+            i += 1
+
         return
+
+    def predict_pid(self, servo_error, integral_error):
+        pre_error = servo_error
+        integral_error = integral_error + pre_error
+
+        derivative_error = servo_error
+
+        bias = - (pre_error * self.kp + integral_error * self.ki + derivative_error * self.kd)
+
+        return bias, integral_error

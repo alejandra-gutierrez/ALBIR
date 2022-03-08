@@ -6,7 +6,7 @@
 from pixyBot import pixyBot
 from pixyCam import pixyCam
 from time import time
-import typing as t
+# import typing as t
 import math
 
 # obstacleAvoidance class: has a bunch of convinient functions for navigation
@@ -30,7 +30,7 @@ import math
 #   stopAtStationaryObstacles   - move bot along a lane until it encounters an obstacle
 #   avoidStationaryObstacles    - move bot along a lane and move to avoid stationary obstacles
 class obstacleAvoidance(object):
-    def __init__(self, bot: pixyBot = pixyBot(0), cam: pixyCam = pixyCam()):
+    def __init__(self, bot = pixyBot(0), cam = pixyCam()):
         self.bot = bot
 
         self.bot = bot
@@ -68,7 +68,7 @@ class obstacleAvoidance(object):
 
     # output            - -1 if error
     # blockIdx          - index of block in block list that you want to save parameters for
-    def getBlockParams(self, blockIdx: int):
+    def getBlockParams(self, blockIdx):
         if (self.cam.newCount-1) < blockIdx or blockIdx < 0: # do nothing when block doesn't exist
             return -1
         else:
@@ -111,17 +111,23 @@ class obstacleAvoidance(object):
         self.bot.setServoPosition(0)  # set servo to centre
         self.drive(0, 0)  # set racer to stop
 
+        i = 0
         while True:
+            print(f"-------------- {i} ---------------")
             self.cam.getLatestBlocks()
             centerLineBlock = self.cam.isInView(self.centerLineID)
-            if centerLineBlock != 1:
+            if centerLineBlock == -1:
                 print("Cannot detect the center red line!")
+            else:
+                print("Detect the center red line!!!!!")
 
             # Try to find the obstacle: If the obstacle is detected, return 4
             obstacleBlock = self.cam.isInView(self.obstacleID)
             getBlockParamsSuccessMark = self.getBlockParams(obstacleBlock)  # try to find obstacle
-            if not getBlockParamsSuccessMark:
+            if getBlockParamsSuccessMark == -1:
                 print("Cannot get the obstacle information!")
+            elif getBlockParamsSuccessMark == None:
+                print("Update the obstacle information!")
 
             #  Level 1 Set up an if statement to set targetSpeed = 0 when you detect an obstacle,
             #  and move targetSpeed = speed otherwise
@@ -145,13 +151,14 @@ class obstacleAvoidance(object):
                     print("The distance is too long!")
             else:
                 # todo: Paste the code in `follow` in laneFollower.py
-                self.central_line_follow(speed)
+                # self.central_line_follow(speed)
+                self.drive(targetSpeed, steering)
 
-            # todo: How could we specify the `steering`?
-            # self.drive(targetSpeed, steering)
+            i += 1
+
         return
 
-    def __cal_distance__(self, block_idx: int) -> float:
+    def __cal_distance__(self, block_idx):
         """Calculate the distance between the obstacle and the robot.
 
         Here we are going to use focal length to calculate the distance.
@@ -166,7 +173,7 @@ class obstacleAvoidance(object):
 
         return D_width
 
-    def __cal_angle__(self, block_idx: int) -> t.Tuple[bool, float]:
+    def __cal_angle__(self, block_idx):
         """Calculate the angle.
 
         Note: The camera is ever-changing or not? or should we correct the camera when running?
@@ -237,13 +244,12 @@ class obstacleAvoidance(object):
 
         return
 
-    def followTarget(self, speed):
+    def followTarget(self, speed, servo_position):
         correction = 0
-        servo_pos = 0
 
         CL_angular_error = self.blockAngle[-1] + correction
-        camera_rotation = -(servo_pos / 50) * 25  # Account for the rotation of the camera
-        angle = CL_angular_error + camera_rotation
+        camera_rotation = -(servo_position / 50) * 25  # Account for the rotation of the camera
+        angle = CL_angular_error + servo_position
         lineSteering = angle * 0.015
         self.drive(speed, lineSteering)
 
@@ -287,17 +293,20 @@ class obstacleAvoidance(object):
             print("line_markers: ", line_markers)
             self.getBlockParams(line_markers[0])
 
-            if centerLineBlock >= 0:  # drive while we see a line
+            if centerLineBlock >= 0 && centerLineBlock > :
                 self.getBlockParams(line_markers[0])
-                self.followTarget(speed)
+                servo_error, servo_position = self.visTrack(0)
+                self.followTarget(speed, servo_position)
 
             elif leftLineBlock >= 0:
                 self.getBlockParams(line_markers[1])
-                self.followTarget(speed)
+                servo_error, servo_position = self.visTrack(1)
+                self.followTarget(speed, servo_position)
 
             elif rightLineBlock >= 0:
                 self.getBlockParams(line_markers[2])
-                self.followTarget(speed)
+                servo_error, servo_position = self.visTrack(2)
+                self.followTarget(speed, servo_position)
 
             else:  # stop the racer and wait for new blocks
                 self.drive(0, 0)

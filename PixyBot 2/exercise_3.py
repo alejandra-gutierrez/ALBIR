@@ -13,7 +13,7 @@ def main():
     servoCorrection = 0  # put the servo correction for your robot here
     ###
 
-    r = pixyBot(servoCorrection, PID_controller(0.06, 0, 0.06))
+    r = pixyBot(servoCorrection, PID_controller(0.2, 0, 0.06))
     p = pixyCam()
     lf = laneFollower(r, p)
 
