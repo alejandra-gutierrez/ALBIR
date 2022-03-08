@@ -68,7 +68,7 @@ class obstacleAvoidance(object):
         diffDrive = bias * totalDrive # set how much throttle goes to steering
         straightDrive = totalDrive - abs(diffDrive) # the rest for driving forward (or backward)
 
-        lDrive = straightDrive + diffDrive
+        lDrive = straightDrive + diffDrive - 0.1
         rDrive = straightDrive - diffDrive
         self.bot.setMotorSpeeds(lDrive, rDrive)
 
@@ -242,24 +242,29 @@ class obstacleAvoidance(object):
                             self.drive(0.6, 0.4)
                         else:
                             value = 2
-                            self.drive(0.4, -0.4)
-                        if servoPos > 40 or servoPos < -50: 
-                            if value == 1:
-                                self.bot.setMotorSpeeds(0.4, 0.6, 0.8)
-                            elif value == 2:
-                                self.bot.setMotorSpeeds(0.6, 0.4, 0.8)
-                            self.getCenterBlockParams(centerLineBlock)
-                            servo_error, servo_position  =  self.visTrack(centerLineBlock)
+                            self.drive(0.6, -0.4)
+                        if servoPos > 30 or servoPos < -30: 
                             close = False
+                            #finish = True
+                            if value == 1:
+                                self.bot.setMotorSpeeds(0.3, 0.6, 0.3)
+                                self.bot.setServoPosition(servoPos - 30)
+                            elif value == 2:
+                                self.bot.setMotorSpeeds(0.5, 0.2, 0.3)
+                                self.bot.setServoPosition(servoPos + 30)
                             break 
-                        
+
+            if finish:
+                break        
                 
             if not close:
+                self.getCenterBlockParams(centerLineBlock)
                 centerLineBlock = self.cam.isInView(self.centerLineID)
                 if centerLineBlock >= 0:
                     self.getCenterBlockParams(centerLineBlock)
                     servo_error, servo_position  =  self.visTrack(centerLineBlock)
-                    bias = -servo_position*0.01
+                    bias = -servo_position*0.015
                     self.drive(speed, bias)
+                
 
         return
