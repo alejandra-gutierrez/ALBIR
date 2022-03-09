@@ -151,8 +151,7 @@ class obstacleAvoidance(object):
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
                 print(self.blockDistance[-1])
-                if False:
-                #if self.blockDistance[-1] <= targetDistance:
+                if self.blockDistance[-1] <= targetDistance:
                     close = True
                     print(close)
                     self.drive(0,0)
@@ -172,7 +171,7 @@ class obstacleAvoidance(object):
             if finish:
                 break
                 
-            if False:
+            if not close:
                 centerLineBlock = self.cam.isInView(self.centerLineID)
                 if centerLineBlock >= 0:
                     self.getCenterBlockParams(centerLineBlock)
