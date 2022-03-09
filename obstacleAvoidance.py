@@ -147,13 +147,15 @@ class obstacleAvoidance(object):
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
                 print(self.blockDistance[-1])
-                if self.blockDistance[-1] <= 2.0:
+                if self.blockDistance[-1] <= 0.08:
                     close = True
+                    self.cam.getLatestBlocks()
+                    obstacleBlock = self.cam.isInView(self.obstacleID) 
                     while True:
                         servoError,servoPos = self.visTrack(obstacleBlock)
                         print(servoPos)
                         if servoPos > 0:
-                            self.drive(0.6, 0.4)
+                            self.drive(0.4, 0.4)
                         else:
                             self.drive(0.4, -0.4)
                         if servoPos > 40 or servoPos < -50: 
@@ -178,98 +180,49 @@ class obstacleAvoidance(object):
     # speed             - general speed of bot
     def avoidStationaryObstacles(self, speed):
 
-        #self.bot.setServoPosition(-10)
-
-        #while True:
-        #    self.cam.getLatestBlocks()
-        #    self.getBlockParams(self.cam.isInView(self.obstacleID))
-
-            ###Level 4### Please insert code here to derive non-zero obstacleSteering and keep the robot running
-            ### You need to first identify the obstacle and decide whether you want to visaully track it. Then you use what you learn from Level 1,2 and 3 to implement detection and steering.
-            ### Hint: self.cam.newBlocks and self.cam.oldBlocks are sorted by decreasing pixel size. Do you always want to be focused on the largest object?
-
-            #lineSteering = 0
-            #obstacleSteering = 0
-
-            #steering = obstacleSteering + lineSteering # we set the final steering as a linear combination of the obstacle steering and center line steering - but it's all up to you!
-            #self.drive(targetSpeed, steering)
-            ###
-        #count = 0
-        #while True:
-        #    self.cam.getLatestBlocks()
-        #    centerLineBlock = self.cam.isInView(self.centerLineID)
-        #    obstacleBlock = self.cam.isInView(self.obstacleID) 
-            #targetSpeed = 0.2
-        #    speed = 0.4
-        #    if obstacleBlock >= 0:
-        #        self.getBlockParams(obstacleBlock)
-        #        if count == 0 and self.blockDistance[-1] > 3.2:
-        #            stop = 2
-        #        elif count == 0 and self.blockDistance[-1] <= 3.2:
-        #            stop = 1.5
-        #        print(self.blockDistance[-1])
-        #        count += 1
-        #        if mean(self.blockDistance[-6:-1]) <= stop:
-        #            servoError,servoPos = self.visTrack(obstacleBlock)
-        #            print(servoPos)
-        #            if servoPos +10.3 >= 0: #obstacle is on the left
-        #                self.bot.setMotorSpeeds(0.4, 0.2, 0.8)
-        #                self.bot.setMotorSpeeds(0.1, 0.4, 0.5)
-        #                self.bot.setMotorSpeeds(0.2, 0.2, 0.6)
-                        #print('done')
-        #                self.centreTrack(0.2)
-        #                continue
-        #            elif servoPos - 5 < 0: #obstacle is on the right
-        #                self.bot.setMotorSpeeds(0.2, 0.4, 1)
-        #                self.bot.setMotorSpeeds(0.3, 0.1, 0.5)
-        #                self.bot.setMotorSpeeds(0.2, 0.2, 0.6)
-        #                self.centreTrack(0.2)
-        #                continue
-
-        #    self.centreTrack(speed)
-            #self.drive(speed, 0)
+       
         kp = 0.015
         kd = 0
         ki = 0
         IntegralError = 0
         PreviousError = 0
         self.bot.setServoPosition(0) # set servo to centre
+        
+        count = 0
+        close = False
+        finish = False
         while True:
             self.cam.getLatestBlocks()
             centerLineBlock = self.cam.isInView(self.centerLineID)
             obstacleBlock = self.cam.isInView(self.obstacleID) 
             speed = 0.4
-            close = False
-            finish = False
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
-                #print(self.blockDistance[-1])
+                count += 1
+                print(self.blockDistance[-1])
                 if self.blockDistance[-1] <= 0.07:
                     close = True
-                    servoError,servoPos = self.visTrack(obstacleBlock)
-                    print(self.blockDistance[-1])
-                    self.cam.getLatestBlocks()
-                    obstacleBlock = self.cam.isInView(self.obstacleID) 
                     while True:
                         servoError,servoPos = self.visTrack(obstacleBlock)
-                        print(servoPos)
+                        #print(servoPos)
                         if servoPos > 0:
                             value = 1
-                            self.drive(0.6, 0.5)
+                            self.drive(0.5, 0.4)
                         else:
                             value = 2
-                            self.drive(0.6, -0.5)
-                        if servoPos > 40 or servoPos < -45: 
+                            self.drive(0.5, -0.4)
+                        if servoPos > 40 or servoPos < -40: 
                             close = False
-                            #finish = True
                             if value == 1:
                                 self.bot.setMotorSpeeds(0.3, 0.55, 0.6)
                                 self.bot.setServoPosition(servoPos - 30)
                             elif value == 2:
                                 self.bot.setMotorSpeeds(0.55, 0.3, 0.6)
-                                self.bot.setServoPosition(servoPos + 30)
+                                self.bot.setServoPosition(servoPos +30)
                             break 
-  
+
+            if finish:
+                break
                 
             if not close:
                 
@@ -288,6 +241,7 @@ class obstacleAvoidance(object):
                     self.drive(speed,bias)
                 else:
                     self.bot.setMotorSpeeds(0,0)
+                    
                 
 
         return
