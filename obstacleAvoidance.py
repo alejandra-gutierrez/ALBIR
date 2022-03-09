@@ -11,7 +11,7 @@ from PIDcontroller import PID_controller
 from time import time
 from numpy import mean
 import math
-
+from math import pi
 # obstacleAvoidance class: has a bunch of convinient functions for navigation
 #
 # input arguments
@@ -56,7 +56,7 @@ class obstacleAvoidance(object):
     # output            - none
     # drive             - desired general bot speed (-1~1)
     # bias              - ratio of drive speed that is used to turn right (-1~1)
-    def drive(self, drive, bias): # Differential drive function
+    def drive(self, drive, bias, time=0): # Differential drive function
         if bias > 1:
             bias = 1
         if bias < -1:
@@ -68,9 +68,12 @@ class obstacleAvoidance(object):
         diffDrive = bias * totalDrive # set how much throttle goes to steering
         straightDrive = totalDrive - abs(diffDrive) # the rest for driving forward (or backward)
 
-        lDrive = straightDrive + diffDrive - 0.1
+        lDrive = straightDrive + diffDrive - 0.2
         rDrive = straightDrive - diffDrive
-        self.bot.setMotorSpeeds(lDrive, rDrive)
+        if time == 0:
+            self.bot.setMotorSpeeds(lDrive, rDrive)
+        else:
+            self.bot.setMotorSpeeds(lDrive, rDrive, time)
 
     # output            - -1 if error
     # blockIdx          - index of block in block list that you want to save parameters for
@@ -78,10 +81,16 @@ class obstacleAvoidance(object):
         if (self.cam.newCount-1) < blockIdx or blockIdx < 0: # do nothing when block doesn't exist
             return -1
         else:
-            pixelSize = self.cam.newBlocks[blockIdx].m_height;
-            distance = (self.focalLength*140)/pixelSize
-            #distance = 2*2*300/pixelSize
-            angleSize = pixelSize/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular size of block
+            pixelSizeH = self.cam.newBlocks[blockIdx].m_height;
+            pixelSizeW = self.cam.newBlocks[blockIdx].m_width;
+            distanceH = (self.focalLength*140)/pixelSizeH
+            distanceW = 2*2*300/pixelSizeW
+            
+            bottomEdge = self.cam.newBlocks[blockIdx].m_y + pixelSizeH/2
+            alfa = 90 - (bottomEdge/self.cam.pixyMaxY) * self.cam.pixyY_FoV + self.cam.pixyY_FoV/2 - 20
+            distanceBottomEdge = self.cam.height * math.tan(alfa*pi/180)
+            
+            angleSize = pixelSizeW/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular size of block
             pixelError = self.cam.newBlocks[blockIdx].m_x -  self.cam.pixyCenterX
             angleError = pixelError/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular error of block relative to front
 
@@ -89,7 +98,7 @@ class obstacleAvoidance(object):
             self.blockSize.append(angleSize)
             self.blockAngle.append(angleError)
             self.frameTimes.append(time())
-            self.blockDistance.append(distance)
+            self.blockDistance.append(distanceBottomEdge)
             # remove oldest params
             self.blockSize.pop(0)
             self.blockAngle.pop(0)
@@ -219,7 +228,11 @@ class obstacleAvoidance(object):
 
         #    self.centreTrack(speed)
             #self.drive(speed, 0)
-        
+        kp = 0.015
+        kd = 0
+        ki = 0
+        IntegralError = 0
+        PreviousError = 0
         self.bot.setServoPosition(0) # set servo to centre
         while True:
             self.cam.getLatestBlocks()
@@ -230,41 +243,51 @@ class obstacleAvoidance(object):
             finish = False
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
-                print(self.blockDistance[-1])
-                if self.blockDistance[-1] <= 2.0:
-                    print('yay')
+                #print(self.blockDistance[-1])
+                if self.blockDistance[-1] <= 0.07:
                     close = True
+                    servoError,servoPos = self.visTrack(obstacleBlock)
+                    print(self.blockDistance[-1])
+                    self.cam.getLatestBlocks()
+                    obstacleBlock = self.cam.isInView(self.obstacleID) 
                     while True:
                         servoError,servoPos = self.visTrack(obstacleBlock)
                         print(servoPos)
                         if servoPos > 0:
                             value = 1
-                            self.drive(0.6, 0.4)
+                            self.drive(0.6, 0.5)
                         else:
                             value = 2
-                            self.drive(0.6, -0.4)
-                        if servoPos > 30 or servoPos < -30: 
+                            self.drive(0.6, -0.5)
+                        if servoPos > 40 or servoPos < -45: 
                             close = False
                             #finish = True
                             if value == 1:
-                                self.bot.setMotorSpeeds(0.3, 0.6, 0.3)
+                                self.bot.setMotorSpeeds(0.3, 0.55, 0.6)
                                 self.bot.setServoPosition(servoPos - 30)
                             elif value == 2:
-                                self.bot.setMotorSpeeds(0.5, 0.2, 0.3)
+                                self.bot.setMotorSpeeds(0.55, 0.3, 0.6)
                                 self.bot.setServoPosition(servoPos + 30)
                             break 
-
-            if finish:
-                break        
+  
                 
             if not close:
+                
                 self.getCenterBlockParams(centerLineBlock)
                 centerLineBlock = self.cam.isInView(self.centerLineID)
                 if centerLineBlock >= 0:
                     self.getCenterBlockParams(centerLineBlock)
                     servo_error, servo_position  =  self.visTrack(centerLineBlock)
-                    bias = -servo_position*0.015
-                    self.drive(speed, bias)
+                    P = servo_position
+                    I = IntegralError + servo_position
+                    D = (servo_position - PreviousError) 
+                    bias = -(P * kp + I * ki + D * kd)
+                    PreviousError = servo_position
+                    IntegralError = IntegralError + servo_position
+
+                    self.drive(speed,bias)
+                else:
+                    self.bot.setMotorSpeeds(0,0)
                 
 
         return
