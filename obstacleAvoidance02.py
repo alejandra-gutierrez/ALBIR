@@ -86,7 +86,7 @@ class obstacleAvoidance(object):
             
             bottomEdge = self.cam.newBlocks[blockIdx].m_y + pixelSizeH/2
             alfa = 90 - (bottomEdge/self.cam.pixyMaxY) * self.cam.pixyY_FoV + self.cam.pixyY_FoV/2 - 20
-            distanceBottomEdge = self.cam.height * math.tan(alfa*pi/180)
+            distanceBottomEdge = (self.cam.height * 100 * math.tan(alfa*pi/180)) * 1.0098 + 2.193
             
             angleSize = pixelSizeW/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular size of block
             pixelError = self.cam.newBlocks[blockIdx].m_x -  self.cam.pixyCenterX
@@ -133,8 +133,8 @@ class obstacleAvoidance(object):
     # output            - none
     # speed             - general speed of bot
     def stopAtStationaryObstacles(self, speed):
-        targetDistance = 0.1
-        targetAngle = -50
+        targetDistance = 20 #cm
+        targetAngle = -50   #degrees 
         kp = 0.015
         kd = 0
         ki = 0
