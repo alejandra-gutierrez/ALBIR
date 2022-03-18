@@ -35,11 +35,11 @@ class laneFollower(object):
 
         self.bot = bot
         self.cam = cam
-        self.biasControl = PID_controller(0.015, 0, 0)    
+        self.biasControl = PID_controller(0.015, 0, 0.001)    
 
         self.centerLineID   = 1
-        self.leftLineID     = 4
-        self.rightLineID    = 2
+        self.leftLineID     = 2
+        self.rightLineID    = 4
         self.obstacleID     = 5
 
         # tracking parameters variables
@@ -117,7 +117,7 @@ class laneFollower(object):
             leftLineBlock = self.cam.isInView(self.leftLineID)
             rightLineBlock = self.cam.isInView(self.rightLineID)
             obstacleBlock = self.cam.isInView(self.obstacleID)
-
+            #print(leftLineBlock, centerLineBlock, rightLineBlock)
             centerightAngleProp = 0         #Centre angle proportion component
             rightAngleProp = 0         #Right angle proportion component
             leftAngleProp = 0         #Left angle proportion component
@@ -137,25 +137,24 @@ class laneFollower(object):
                 self.getBlockParams(centerLineBlock)
                 centerAngle = self.blockAngle[-1]
                 centerightSize = self.blockSize[-1]
-                centerightAngleProp = 0.6
-                
+                centerightAngleProp = 0.5
                 
             if rightLineBlock >= 0:
                 self.getBlockParams(rightLineBlock)
                 rightAngle = self.blockAngle[-1]
                 rightSize = self.blockSize[-1]
-                rightAngleProp = 0.1
-                #rightSizeProp = 0.05 #Not confident in block size scale factor yet
-
+                rightAngleProp = 0
+                rightSizeProp = 0.1
+                print('right ', rightSize)
                 
             if leftLineBlock >= 0:
                 self.getBlockParams(leftLineBlock)
                 leftAngle = self.blockAngle[-1]
                 leftSize = self.blockSize[-1]
-                leftAngleProp = 0.1
-                #leftSizeProp = 0.05 #Not confident in block size scale factor yet
-                
-                
+                leftAngleProp = 0
+                leftSizeProp = 0.1
+                print('Left ', leftSize)
+                    
             if obstacleBlock >= 0:                      #Obstacle routine
                 print('Obstacle')
                 
@@ -171,25 +170,25 @@ class laneFollower(object):
             
             sumK = centerightAngleProp + rightAngleProp + leftAngleProp + rightSizeProp + leftSizeProp 
             CaP = 1 #Center angle P
-            RaP = 1 #Right angle P
-            LaP = 1 #Left angle P
+            RaP = 1.2 #Right angle P
+            LaP = 1.2 #Left angle P
             RsP = 1 #Right size P 
             LsP = 1 #Left size P
             if not lost:
                 waC = (centerightAngleProp/sumK) * (CaP/25)
-                waR = (rightAngleProp/sumK) * (RaP/25)
-                waL = (leftAngleProp/sumK) * (LaP/25)
-                wsR = (rightSizeProp/sumK) * (RsP/1)
-                wsL = (leftSizeProp/sumK) * (LsP/1)
+                waR = (rightAngleProp/sumK) * (RaP/50)
+                waL = (leftAngleProp/sumK) * (LaP/50)
+                wsR = (rightSizeProp/sumK) * (RsP/10)
+                wsL = (leftSizeProp/sumK) * (LsP/10)
                 #print(waR, waL)
                 
-                thetaDot = -25*( waC*centerAngle + waR*(rightAngle-25) + waL*(leftAngle+25) + wsR*(-rightSize) + wsL*(leftSize) ) #at max error, should be scaled to max angle size
-                print(waR*(rightAngle-25), waL*(leftAngle+25), thetaDot)
-                
+                thetaDot = 25*( waC*centerAngle - waR*(25-rightAngle) + waL*(25-leftAngle) + wsR*(-rightSize) + wsL*(leftSize) ) #at max error, should be scaled to max angle size
+                #print(waL*(leftAngle), -waR*(rightAngle), thetaDot)
+                #print(wsR*(-rightSize), wsL*(leftSize), thetaDot)
                 ##Point cam in weighted direction
-                visTargetAngle = self.bot.servo.lastPosition + self.bot.gimbal.update(thetaDot)
+                visTargetAngle = self.bot.servo.lastPosition + self.bot.gimbal.update(-thetaDot)
                 newServoPosition = self.bot.setServoPosition(visTargetAngle)     
-                
+                #print(waC*centerAngle)
                 ##Drive robot in direction of cam 
                 bias = -self.biasControl.update(newServoPosition) #PID for this at top of script
                 #print(bias)
