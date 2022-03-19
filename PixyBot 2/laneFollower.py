@@ -163,9 +163,9 @@ class laneFollower(object):
         integral_error = 0
         pre_error = 0
 
-        i += 0
+        i = 0
         while True:
-            # update the cam vie
+            # update the cam view
             self.cam.getLatestBlocks()
 
             # Try to find the corresponding block
@@ -179,7 +179,6 @@ class laneFollower(object):
             # if rightLineBlock == -1:
             #     print("Cannot detect the right line --- ", i)
 
-            # todo: why do we need update the blockParams here?
             line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
 
             if centerLineBlock >= 0:
@@ -207,7 +206,6 @@ class laneFollower(object):
 
                 self.drive(speed, bias)
                 
-
             elif rightLineBlock >= 0:
                 print("Detect the right line --- ", i)
 
@@ -218,7 +216,6 @@ class laneFollower(object):
                 print("Non-dimensional error: ", cur_error)
 
                 self.drive(speed, bias)
-                
                 
             else:  # stop the racer and wait for new blocks
                 self.drive(0, 0)
