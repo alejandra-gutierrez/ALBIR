@@ -42,6 +42,8 @@ from pixyCam import pixyCam
 #   follow                      - move bot along a lane, following markers
 class laneFollower(object):
     def __init__(self, bot=pixyBot(0), cam=pixyCam()):
+        # put servo to positive, the cam turns left
+
         self.bot = bot
 
         self.bot = bot
@@ -49,8 +51,8 @@ class laneFollower(object):
         self.biasControl = PID_controller(0.015, 0, 0.001)
 
         self.centerLineID = 1
-        self.leftLineID = 2
-        self.rightLineID = 3
+        self.leftLineID = 3
+        self.rightLineID = 2
         self.obstacleID = 5
 
         # tracking parameters variables
@@ -58,6 +60,7 @@ class laneFollower(object):
         self.frameTimes = [float('nan') for i in range(nObservations)]
         self.blockSize = [float('nan') for i in range(nObservations)]
         self.blockAngle = [float('nan') for i in range(nObservations)]
+        self.lastCenterBlock = [float('nan') for i in range(nObservations)]
 
     # output            - none
     # drive             - desired general bot speed (-1~1)
@@ -87,17 +90,21 @@ class laneFollower(object):
             pixeleftSize = self.cam.newBlocks[blockIdx].m_width
             angleSize = pixeleftSize / self.cam.pixyMaxX * self.cam.pixyX_FoV  # get angular size of block
             pixelError = self.cam.newBlocks[blockIdx].m_x - self.cam.pixyCenterX
-            angleError = pixelError / self.cam.pixyMaxX * self.cam.pixyX_FoV  # get angular error of block relative to front
+            centerAngle = pixelError / self.cam.pixyMaxX * self.cam.pixyX_FoV  # get angular error of block relative to front
 
             # save params
             self.blockSize.append(angleSize)
-            self.blockAngle.append(angleError)
+            self.blockAngle.append(centerAngle)
             self.frameTimes.append(time())
+            if self.cam.newBlocks[blockIdx].m_signature == self.centerLineID:
+                self.lastCenterBlock.append(centerAngle)
 
             # remove oldest params
             self.blockSize.pop(0)
             self.blockAngle.pop(0)
             self.frameTimes.pop(0)
+            if self.cam.newBlocks[blockIdx].m_signature == self.centerLineID:
+                self.lastCenterBlock.pop(0)
 
     # output            - tracking error in ([deg]) and new camera angle in ([deg]) (tuple), or -1 if error
     # blockIdx          - index of block in block list that you want to track with the camera
@@ -119,6 +126,8 @@ class laneFollower(object):
     # output            - none
     # speed             - general speed of bot
     def follow(self, speed):
+        # If we cannot see the red line, we set the servo position to zero. Also, if the servo position larger than
+        # the threshold, we set it to zero.
 
         self.bot.setServoPosition(0)  # set servo to centre
         print("Centred")
@@ -133,7 +142,7 @@ class laneFollower(object):
             leftLineBlock = self.cam.isInView(self.leftLineID)
             rightLineBlock = self.cam.isInView(self.rightLineID)
 
-            flag = 1  # The marker to check the error
+            flag = 0  # The marker to check the error
 
             turning_rate = 0
             weight_shift = 0.2
@@ -143,31 +152,61 @@ class laneFollower(object):
             mapped_centerAngle = 0
 
             if centerLineBlock >= 0:
-                flag = 0
                 self.getBlockParams(centerLineBlock)
-                self.visTrack(centerLineBlock)  # only use red line to modify the servo
+                servoError, servoPos = self.visTrack(centerLineBlock)  # only use red line to modify the servo
+
+                # If the servo position is too large, it set it to the original pointer
+                threshold = 40
+                if abs(servoPos) > threshold:
+                    print("Error - set servo position to -40!")
+                    new_servo_pos = servoPos - threshold if servoPos > 0 else servoPos + threshold
+                    self.bot.setServoPosition(new_servo_pos)
+
                 centerAngle = self.blockAngle[-1]
                 # map the center angle to [-1, 1]
                 mapped_centerAngle = self.mapf(angle_error=centerAngle, min_val=-25, max_val=25, preferred_min=-1,
                                                preferred_max=1)
                 print("Center line -- Center angle: ", centerAngle, "Mapped centerAngle: ", mapped_centerAngle)
-
-
             else:
-                flag = 1  # we need to count the left and right error
+                print("Error - set servo position to 0!")
+                self.bot.setServoPosition(0)
 
-                if leftLineBlock >= 0:
-                    # we detect the left line
-                    leftAngle = self.blockAngle[-1]
-                    self.visTrack(leftLineBlock)
-                    mapped_leftAngle = self.mapf(leftAngle, min_val=-25, max_val=25, preferred_min=0, preferred_max=1)
-                    print("Left line -- Left angle: ", leftAngle, "Mapped leftAngle: ", mapped_leftAngle)
-                if rightLineBlock >= 0:
-                    rightAngle = self.blockAngle[-1]
-                    self.visTrack(rightLineBlock)
-                    mapped_rightAngle = self.mapf(rightAngle, min_val=-25, max_val=25, preferred_min=-1,
-                                                  preferred_max=0)
-                    print("Right line -- Right angle: ", rightAngle, "Mapped rightAngle: ", mapped_rightAngle)
+                centerAngle = self.lastCenterBlock[-1]
+                mapped_centerAngle = self.mapf(angle_error=centerAngle, min_val=-25, max_val=25, preferred_min=-1,
+                                               preferred_max=1)
+                if centerAngle > 0:
+                    # left
+                    print("Error angle: ", centerAngle)
+                    self.symmetricTrun(0.3, runTime=0.3)
+                elif centerAngle < 0:
+                    # right
+                    print("Error angle: ", centerAngle)
+                    self.symmetricTrun(-0.3, runTime=0.3)
+                else:
+                    print("Error angle: ", centerAngle)
+                    self.drive(-0.3, 0)
+
+                self.drive(0, 0)
+
+            if leftLineBlock >= 0:
+                # we detect the left line
+                self.getBlockParams(leftLineBlock)
+                leftAngle = self.blockAngle[-1]
+                # self.visTrack(leftLineBlock)
+                mapped_leftAngle = self.mapf(leftAngle, min_val=-25, max_val=25, preferred_min=0, preferred_max=1)
+                print("Left line -- Left angle: ", leftAngle, "Mapped leftAngle: ", mapped_leftAngle)
+            if rightLineBlock >= 0:
+                self.getBlockParams(rightLineBlock)
+                rightAngle = self.blockAngle[-1]
+                # self.visTrack(rightLineBlock)
+                mapped_rightAngle = self.mapf(rightAngle, min_val=-25, max_val=25, preferred_min=-1,
+                                              preferred_max=0)
+                print("Right line -- Right angle: ", rightAngle, "Mapped rightAngle: ", mapped_rightAngle)
+
+            # If both left and right exit, we set the flag to 1, which means we are going to consider the left and
+            # right error
+            if leftLineBlock >= 0 and rightLineBlock >= 0:
+                flag = 1
 
             turning_rate = mapped_centerAngle + flag * (weight_shift * (mapped_leftAngle + mapped_rightAngle) -
                                                         weight_shift * mapped_centerAngle)
@@ -175,17 +214,29 @@ class laneFollower(object):
             print("Turning rate", turning_rate)
             if turning_rate != 0:
                 # update the servo
-                # self.bot.gimbal.update(turning_rate)
-
                 self.drive(speed, turning_rate)
             else:
                 print("lost")
-                # go back and focus on the
+                # go back and focus on last red block -- we cannot see the any line
+                centerAngle = self.lastCenterBlock[-1]
+                mapped_centerAngle = self.mapf(angle_error=centerAngle, min_val=-25, max_val=25, preferred_min=-1,
+                                               preferred_max=1)
+                if centerAngle > 0:
+                    # left
+                    print("Error angle: ", centerAngle)
+                    self.symmetricTrun(0.3, runTime=0.3)
+                elif centerAngle < 0:
+                    # right
+                    print("Error angle: ", centerAngle)
+                    self.symmetricTrun(-0.3, runTime=0.3)
+                else:
+                    print("Error angle: ", centerAngle)
+                    self.drive(-0.3, 0)
 
                 self.drive(0, 0)
 
         return
 
-    def symmetricTrun(self, speed):
+    def symmetricTrun(self, speed, runTime):
         # Here we define that if speed is positive, it will turn right,
-        self.bot.setMotorSpeeds(speed, -speed)
+        self.bot.setMotorSpeeds(speed, -speed, runTime=runTime)

@@ -123,56 +123,56 @@ class laneFollower(object):
                 ### to come up with a steering command to send to self.drive(speed, steering) function. Remember the steering takes values between -1 and 1.
                 visAngError, newServoPos = self.visTrack(centerLineBlock)
                 self.visTrack(centerLineBlock)
-                bias = - self.biasController.update(newServoPos)
-                print('Bias -- ', bias)
-                self.drive(speed, bias)
+                # bias = - self.biasController.update(newServoPos)
+                # print('Bias -- ', bias)
+                # self.drive(speed, bias)
 
-            else:
-                print("Cannot detect center line!")
-
-                # rightLineBlock = - 1
-                # while True:
-                #     # try to detect the blue line,
-                #     rightLineBlock = self.cam.isInView(self.rightLineID)
-                #     if rightLineBlock >= 0:
-                #         print("Detect the right line!")
-                #         visAngError, newServoPos = self.visTrack(rightLineBlock)
-                #         bias = - self.biasController.update(newServoPos)
-                #         self.drive(speed, bias)
-                #         print('Bias -- ', bias)
-                #         break
-                #     else:
-                #         self.bot.setServoPosition(10)
-                #         self.bot.setMotorSpeeds(0.4, 0.4, 0.2)
-
-                leftLineBlock = self.cam.isInView(self.leftLineID)
-                rightLineBlock = self.cam.isInView(self.rightLineID)
-
-                # right line detection -- find the blue line
-                # We need to make the servo turn right a little
-                if leftLineBlock >= 0:
-                    print("Detect the left line!")
-                    visAngError, newServoPos = self.visTrack(leftLineBlock)
-                    bias = - self.biasController.update(newServoPos)
-
-                    print('Bias -- ', bias)
-                    self.drive(speed, bias)
-                    continue
-
-                if rightLineBlock >= 0:
-                    print("Detect the right line!")
-                    visAngError, newServoPos = self.visTrack(rightLineBlock)
-                    bias = - self.biasController.update(newServoPos)
-                    self.drive(speed, bias)
-                    print('Bias -- ', bias)
-                    continue
-
-                else:
-                    print("Cannot detect any line!")
-                    targetSpeed = 0
-                    bias = 0
-                    self.drive(targetSpeed, bias)
-                    print('Bias -- ', bias)
-                    continue
+            # else:
+            #     print("Cannot detect center line!")
+            #
+            #     # rightLineBlock = - 1
+            #     # while True:
+            #     #     # try to detect the blue line,
+            #     #     rightLineBlock = self.cam.isInView(self.rightLineID)
+            #     #     if rightLineBlock >= 0:
+            #     #         print("Detect the right line!")
+            #     #         visAngError, newServoPos = self.visTrack(rightLineBlock)
+            #     #         bias = - self.biasController.update(newServoPos)
+            #     #         self.drive(speed, bias)
+            #     #         print('Bias -- ', bias)
+            #     #         break
+            #     #     else:
+            #     #         self.bot.setServoPosition(10)
+            #     #         self.bot.setMotorSpeeds(0.4, 0.4, 0.2)
+            #
+            #     leftLineBlock = self.cam.isInView(self.leftLineID)
+            #     rightLineBlock = self.cam.isInView(self.rightLineID)
+            #
+            #     # right line detection -- find the blue line
+            #     # We need to make the servo turn right a little
+            #     if leftLineBlock >= 0:
+            #         print("Detect the left line!")
+            #         visAngError, newServoPos = self.visTrack(leftLineBlock)
+            #         bias = - self.biasController.update(newServoPos)
+            #
+            #         print('Bias -- ', bias)
+            #         self.drive(speed, bias)
+            #         continue
+            #
+            #     if rightLineBlock >= 0:
+            #         print("Detect the right line!")
+            #         visAngError, newServoPos = self.visTrack(rightLineBlock)
+            #         bias = - self.biasController.update(newServoPos)
+            #         self.drive(speed, bias)
+            #         print('Bias -- ', bias)
+            #         continue
+            #
+            #     else:
+            #         print("Cannot detect any line!")
+            #         targetSpeed = 0
+            #         bias = 0
+            #         self.drive(targetSpeed, bias)
+            #         print('Bias -- ', bias)
+            #         continue
 
         return
