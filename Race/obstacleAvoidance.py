@@ -212,7 +212,7 @@ class obstacleAvoidance(object):
         self.bot.setServoPosition(0) # set servo to centre
         speed = 0.4
         finish = False
-        line = 1 
+        line = 0 
         while True:
             self.cam.getLatestBlocks()
             leftLineBlock = self.cam.isInView(self.leftLineID)
@@ -221,7 +221,7 @@ class obstacleAvoidance(object):
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
                 print(self.blockDistance[-1])
-                if self.blockDistance[-1] <= 0.1: 
+                if self.blockDistance[-1] <= 0.15: 
                     if line == 0: #if one the left turn to face the right 
                         line = 1
                         self.drive(0.5, 0.3, 0.5)
@@ -250,12 +250,14 @@ class obstacleAvoidance(object):
             if block >= 0:
                 self.getCenterBlockParams(block)
                 servo_error, servo_position  =  self.visTrack(block)
-                CL_angular_error = self.blockAngle[-1]  
-                # Account for the rotation of the camera
-                camera_rotation = -(servo_position/50) * 25
-                angle = CL_angular_error + camera_rotation
-                lineSteering = angle * 0.02
-                self.drive(speed,lineSteering)
+                print(servo_error)
+                P = servo_position
+                I = IntegralError + servo_position
+                D = (servo_position - PreviousError) 
+                bias = -(P * kp + I * ki + D * kd)
+                PreviousError = servo_position
+                IntegralError = IntegralError + servo_position
+                self.drive(speed,bias)
             else: #look for the line
                 for i in range(-35, 35):
                     self.bot.setMotorSpeeds(0,0)

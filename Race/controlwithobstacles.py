@@ -18,9 +18,9 @@ class robotRace(object):
       
         self.centerLineID   = 1
         self.leftLineID     = 2
-        self.rightLineID    = 3
-        self.obstacleID     = 4
-        self.entranceID     = 5
+        self.rightLineID    = 4
+        self.obstacleID     = 5
+        self.entranceID     = 3
 
         self.obstacleCourse = False
         
@@ -163,7 +163,7 @@ class robotRace(object):
         i = 0
         scan = True
         reverse = True
-        
+        line = 0
         names = ['center', 'left', 'right']
         try: 
             while True:
@@ -182,11 +182,31 @@ class robotRace(object):
                 largest_idx = self.largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
             
                 if obstacleStartBlock >=0:
-                    #Steer into the lane for 0.5s
-                    self.drive(speed, -0.3, 0.5)
+                    if line == 0:
+                        self.bot.setServoPosition(0)
+                        # Get the parameters of the largest block
+                        self.getBlockParams(leftLineBlock)
+                        # Calculate the error corresponding to the offset (offset ~ 22)
+                        CL_angular_error = self.blockAngle[-1]
+                        
+                        # Account for the rotation of the camera
+                        camera_rotation = -(servo_pos/50) * 25
+                        angle = CL_angular_error + camera_rotation
+                        lineSteering = angle * 0.01
+                    else:
+                        self.bot.setServoPosition(0)
+                        # Get the parameters of the largest block
+                        self.getBlockParams(obstacleStartBlock)
+                        # Calculate the error corresponding to the offset (offset ~ 22)
+                        CL_angular_error = self.blockAngle[-1]
+                        
+                        # Account for the rotation of the camera
+                        camera_rotation = -(servo_pos/50) * 25
+                        angle = CL_angular_error + camera_rotation
+                        lineSteering = angle * 0.005
+                    lineSteerng = lineSteering
+                    speed_input = speed
                     self.obstacleCourse = True
-                    #lineSteering = -0.3
-                    #speed_input = speed
                 # There are no markers if largest_idx = -1, otherwise largest_idx = 0 or 1 or 2
                 elif largest_idx >= 0 and self.obstacleCourse == False:
                     correction = 0
@@ -285,4 +305,4 @@ class robotRace(object):
     def avg(self, data, n):
         # average the last 5 elements
         avg = sum(data[-n:])/len(data[-n:])
-        return avg
+        
