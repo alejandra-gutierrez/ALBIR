@@ -212,7 +212,7 @@ class obstacleAvoidance(object):
         self.bot.setServoPosition(0) # set servo to centre
         speed = 0.4
         finish = False
-        line = 0 
+        line = 1 #CHANGE 0 IS BLUE AND 1 IS PURPLE
         while True:
             self.cam.getLatestBlocks()
             leftLineBlock = self.cam.isInView(self.leftLineID)
@@ -221,7 +221,7 @@ class obstacleAvoidance(object):
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
                 print(self.blockDistance[-1])
-                if self.blockDistance[-1] <= 0.15: 
+                if self.blockDistance[-1] <= 0.1: 
                     if line == 0: #if one the left turn to face the right 
                         line = 1
                         self.drive(0.5, 0.3, 0.5)
@@ -230,6 +230,7 @@ class obstacleAvoidance(object):
                         line = 0
                         self.drive(0.5, -0.4, 0.5)
                         print('left turn')
+
        
             if finish:
                 break    

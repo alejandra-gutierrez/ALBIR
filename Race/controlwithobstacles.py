@@ -163,7 +163,7 @@ class robotRace(object):
         i = 0
         scan = True
         reverse = True
-        line = 0
+        line = 1 #CHANGE 0 IS BLUE AND 1 IS PURPLE
         names = ['center', 'left', 'right']
         try: 
             while True:
@@ -182,10 +182,21 @@ class robotRace(object):
                 largest_idx = self.largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
             
                 if obstacleStartBlock >=0:
-                    if line == 0:
+                    if line == 0 and leftLineBlock >=0:
                         self.bot.setServoPosition(0)
                         # Get the parameters of the largest block
                         self.getBlockParams(leftLineBlock)
+                        # Calculate the error corresponding to the offset (offset ~ 22)
+                        CL_angular_error = self.blockAngle[-1]
+                        
+                        # Account for the rotation of the camera
+                        camera_rotation = -(servo_pos/50) * 25
+                        angle = CL_angular_error + camera_rotation
+                        lineSteering = angle * 0.01
+                    elif line==2 and rightLineBlock >= 0:
+                        self.bot.setServoPosition(0)
+                        # Get the parameters of the largest block
+                        self.getBlockParams(rightLineBlock)
                         # Calculate the error corresponding to the offset (offset ~ 22)
                         CL_angular_error = self.blockAngle[-1]
                         
@@ -203,8 +214,8 @@ class robotRace(object):
                         # Account for the rotation of the camera
                         camera_rotation = -(servo_pos/50) * 25
                         angle = CL_angular_error + camera_rotation
-                        lineSteering = angle * 0.005
-                    lineSteerng = lineSteering
+                        lineSteering = angle * 0.01
+                    lineSteering = lineSteering
                     speed_input = speed
                     self.obstacleCourse = True
                 # There are no markers if largest_idx = -1, otherwise largest_idx = 0 or 1 or 2
