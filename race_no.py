@@ -4,7 +4,7 @@
 
 from pixyBot import pixyBot
 from pixyCam import pixyCam
-from controlwithobstacles import robotRace
+from control import robotRace
 from PIDcontroller import PID_controller
 
 # exercises

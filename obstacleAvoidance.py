@@ -4,11 +4,13 @@
 ## last edited Daniel Ko 22/02/2020
 
 from curses import KEY_PPAGE
+from turtle import left
 from pixyBot import pixyBot
 from pixyCam import pixyCam
 from laneFollower import laneFollower
 from PIDcontroller import PID_controller
 from time import time
+import numpy as np
 from numpy import mean
 import math
 from math import pi
@@ -41,8 +43,9 @@ class obstacleAvoidance(object):
 
         self.centerLineID   = 1
         self.leftLineID     = 2
-        self.rightLineID    = 3
-        self.obstacleID     = 4
+        self.rightLineID    = 4
+        self.obstacleID     = 5
+        self.pinkID = 6
 
         # tracking parameters variables
         nObservations = 20
@@ -68,7 +71,7 @@ class obstacleAvoidance(object):
         diffDrive = bias * totalDrive # set how much throttle goes to steering
         straightDrive = totalDrive - abs(diffDrive) # the rest for driving forward (or backward)
 
-        lDrive = straightDrive + diffDrive - 0.2
+        lDrive = straightDrive + diffDrive
         rDrive = straightDrive - diffDrive
         if time == 0:
             self.bot.setMotorSpeeds(lDrive, rDrive)
@@ -85,11 +88,11 @@ class obstacleAvoidance(object):
             pixelSizeW = self.cam.newBlocks[blockIdx].m_width;
             distanceH = (self.focalLength*140)/pixelSizeH
             distanceW = 2*2*300/pixelSizeW
-            
+
             bottomEdge = self.cam.newBlocks[blockIdx].m_y + pixelSizeH/2
             alfa = 90 - (bottomEdge/self.cam.pixyMaxY) * self.cam.pixyY_FoV + self.cam.pixyY_FoV/2 - 20
             distanceBottomEdge = self.cam.height * math.tan(alfa*pi/180)
-            
+
             angleSize = pixelSizeW/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular size of block
             pixelError = self.cam.newBlocks[blockIdx].m_x -  self.cam.pixyCenterX
             angleError = pixelError/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular error of block relative to front
@@ -103,7 +106,7 @@ class obstacleAvoidance(object):
             self.blockSize.pop(0)
             self.blockAngle.pop(0)
             self.frameTimes.pop(0)
-    
+
     def getCenterBlockParams(self, blockIdx):
         if (self.cam.newCount-1) < blockIdx or blockIdx < 0: # do nothing when block doesn't exist
             return -1
@@ -115,7 +118,7 @@ class obstacleAvoidance(object):
             pixelError = self.cam.newBlocks[blockIdx].m_x -  self.cam.pixyCenterX
             angleError = pixelError/self.cam.pixyMaxX*self.cam.pixyX_FoV #get angular error of block relative to front
 
-            
+
             self.blockAngleCenter.append(angleError)
             self.blockAngleCenter.pop(0)
 
@@ -132,116 +135,99 @@ class obstacleAvoidance(object):
             newServoPosition = self.bot.setServoPosition(visTargetAngle)
             return visAngularError, newServoPosition
 
-    # output            - none
-    # speed             - general speed of bot
-    def stopAtStationaryObstacles(self, speed):
+    def get_largest_block(self,center_id, left_id, right_id):
+        # If there is no block of either color, set that id really high - e.g 50
+        if center_id == -1:
+            center_id = 50
+        if left_id == -1:
+            left_id = 50
+        if right_id == -1:
+            right_id = 50
 
-        self.bot.setServoPosition(0) # set servo to centre
-        while True:
-            self.cam.getLatestBlocks()
-            centerLineBlock = self.cam.isInView(self.centerLineID)
-            obstacleBlock = self.cam.isInView(self.obstacleID) 
-            speed = 0.4
-            close = False
-            finish = False
-            if obstacleBlock >= 0:
-                self.getBlockParams(obstacleBlock)
-                print(self.blockDistance[-1])
-                if self.blockDistance[-1] <= 0.08:
-                    close = True
-                    self.cam.getLatestBlocks()
-                    obstacleBlock = self.cam.isInView(self.obstacleID) 
-                    while True:
-                        servoError,servoPos = self.visTrack(obstacleBlock)
-                        print(servoPos)
-                        if servoPos > 0:
-                            self.drive(0.4, 0.4)
-                        else:
-                            self.drive(0.4, -0.4)
-                        if servoPos > 40 or servoPos < -50: 
-                            finish = True
-                            break    
-                    
-            if finish:
-                break
-                
-            if not close:
-                centerLineBlock = self.cam.isInView(self.centerLineID)
-                if centerLineBlock >= 0:
-                    self.getCenterBlockParams(centerLineBlock)
-                    servo_error, servo_position  =  self.visTrack(centerLineBlock)
-                    bias = -servo_position*0.01
-                    self.drive(speed, bias)
+        # group all the marker ids together
+        array = [center_id, left_id, right_id]
+        # set initial id to -1, this is the value returned then we know that the camera cannot see anything.
+        largest_block = -1
 
+        # If color markers are recognised (i.e. min number in array is smaller than 50)
+        if array[array.index(min(array))] < 50:     # find the id of the largest block
+            largest_block = array.index(min(array))
 
-        return
+        # return the id of the largest block: 0-center, 1-left, 2-right, -1- no marker recognised
+        return  largest_block
+
 
     # output            - none
     # speed             - general speed of bot
-    def avoidStationaryObstacles(self, speed):
-
-       
+    def avoidStationaryObstacles(self, speed, line):
         kp = 0.015
         kd = 0
         ki = 0
         IntegralError = 0
         PreviousError = 0
         self.bot.setServoPosition(0) # set servo to centre
-        
-        count = 0
-        close = False
+        speed = 0.4
         finish = False
         while True:
             self.cam.getLatestBlocks()
-            centerLineBlock = self.cam.isInView(self.centerLineID)
-            obstacleBlock = self.cam.isInView(self.obstacleID) 
-            speed = 0.4
+            leftLineBlock = self.cam.isInView(self.leftLineID)
+            rightLineBlock = self.cam.isInView(self.rightLineID)
+            obstacleBlock = self.cam.isInView(self.obstacleID)
+            pinkBlock = self.cam.isInView(self.pinkID)
             if obstacleBlock >= 0:
                 self.getBlockParams(obstacleBlock)
-                count += 1
                 print(self.blockDistance[-1])
-                if self.blockDistance[-1] <= 0.07:
-                    close = True
-                    while True:
-                        servoError,servoPos = self.visTrack(obstacleBlock)
-                        #print(servoPos)
-                        if servoPos > 0:
-                            value = 1
-                            self.drive(0.5, 0.4)
-                        else:
-                            value = 2
-                            self.drive(0.5, -0.4)
-                        if servoPos > 40 or servoPos < -40: 
-                            close = False
-                            if value == 1:
-                                self.bot.setMotorSpeeds(0.3, 0.55, 0.6)
-                                self.bot.setServoPosition(servoPos - 30)
-                            elif value == 2:
-                                self.bot.setMotorSpeeds(0.55, 0.3, 0.6)
-                                self.bot.setServoPosition(servoPos +30)
-                            break 
+                if abs(self.blockDistance[-1]) <= 0.15:
+                    if line == 0: #if one the left turn to face the right
+                        line = 1
+                        self.drive(0.5, 0.3, 0.5)
+                        print('right turn')
+                    else:
+                        line = 0
+                        self.drive(0.5, -0.3, 0.5)
+                        print('left turn')
+
 
             if finish:
                 break
-                
-            if not close:
-                
-                self.getCenterBlockParams(centerLineBlock)
-                centerLineBlock = self.cam.isInView(self.centerLineID)
-                if centerLineBlock >= 0:
-                    self.getCenterBlockParams(centerLineBlock)
-                    servo_error, servo_position  =  self.visTrack(centerLineBlock)
-                    P = servo_position
-                    I = IntegralError + servo_position
-                    D = (servo_position - PreviousError) 
-                    bias = -(P * kp + I * ki + D * kd)
-                    PreviousError = servo_position
-                    IntegralError = IntegralError + servo_position
 
-                    self.drive(speed,bias)
-                else:
+            self.cam.getLatestBlocks()
+            centerLineBlock = self.cam.isInView(self.centerLineID)
+            leftLineBlock = self.cam.isInView(self.leftLineID)
+            rightLineBlock = self.cam.isInView(self.rightLineID)
+            pinkBlock = self.cam.isInView(self.pinkID)
+            if centerLineBlock >= 0:
+                print('seeing red')
+                break #go to race code
+            if line == 0:
+                block = leftLineBlock
+                id = self.leftLineID
+            else:
+                block = rightLineBlock
+                id = self.rightLineID
+            if block >= 0:
+                self.getCenterBlockParams(block)
+                servo_error, servo_position  =  self.visTrack(block)
+                print(servo_error)
+                P = servo_position
+                I = IntegralError + servo_position
+                D = (servo_position - PreviousError)
+                bias = -(P * kp + I * ki + D * kd)
+                PreviousError = servo_position
+                IntegralError = IntegralError + servo_position
+                self.drive(speed,bias)
+            elif pinkBlock >= 0:
+                print("saw PINK")
+                self.drive(0.5, 0, 0.3)
+            else: #look for the line
+                for i in range(-35, 35):
                     self.bot.setMotorSpeeds(0,0)
-                    
-                
+                    self.bot.setServoPosition(i)
+                    self.cam.getLatestBlocks()
+                    seen = self.cam.isInView(id)
+                    if seen >= 0:
+                        break
+
 
         return
+

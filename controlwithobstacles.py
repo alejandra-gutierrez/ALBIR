@@ -1,12 +1,12 @@
-# Library for the final robot race - Animal locomotion and Bioinspired Robots module
-## Author: Jon Skerlj (Using the environment provided by the course)
+## Library for the final robot race - Animal locomotion and Bioinspired Robots module
 
 # Import necessary libraries
 from pixyBot import pixyBot
 from pixyCam import pixyCam
+from obstacleAvoidance import obstacleAvoidance
+from PIDcontroller import PID_controller
 from time import time,sleep
 import math
-from math import pi
 
 
 class robotRace(object):
@@ -20,8 +20,8 @@ class robotRace(object):
         self.leftLineID     = 2
         self.rightLineID    = 4
         self.obstacleID     = 5
-        self.entranceID     = 7
-        
+        self.entranceID     = 3
+
         self.obstacleCourse = False
         
         self.count = 0
@@ -31,23 +31,19 @@ class robotRace(object):
         self.blockSize = [float('nan') for i in range(nObservations)]
         self.blockAngle = [float('nan') for i in range(nObservations)]
         self.pixelSize = [float('nan') for i in range(nObservations)]
-        self.blockAngleCenter = [float('nan') for i in range(nObservations)]
-        self.blockDistance = [float('nan') for i in range(nObservations)]
-        self.focalLength = 2.8
         
         self.redAngles = [float('nan') for i in range(nObservations)]
         self.leftAngles = [float('nan') for i in range(nObservations)]
         self.rightAngles = [float('nan') for i in range(nObservations)]
         
-        self.width_hist = [0 for i in range(30)]
         self.obst_dist_hist = [0 for i in range(30)]
-        self.prev_steering = 0
+        
         self.steeringHistory = [0 for i in range(60)]
         self.speedHistory = [0 for i in range(30)]
     # output            - none
     # drive             - desired general bot speed (-1~1)
     # bias              - ratio of drive speed that is used to turn right (-1~1)
-    def drive(self, drive, bias, time=0): # Differential drive function
+    def drive(self, drive, bias, time = 0): # Differential drive function
         if bias > 1:
             bias = 1
         if bias < -1:
@@ -61,8 +57,7 @@ class robotRace(object):
 
         lDrive = straightDrive + diffDrive
         rDrive = straightDrive - diffDrive
-        self.bot.setMotorSpeeds(lDrive, rDrive)
-        if time == 0:
+        if time ==0 :
             self.bot.setMotorSpeeds(lDrive, rDrive)
         else:
             self.bot.setMotorSpeeds(lDrive, rDrive, time)
@@ -152,56 +147,6 @@ class robotRace(object):
         # return the id of the largest block: 0-center, 1-left, 2-right, -1- no marker recognised
         return  thicc_boi
     
-    def obstacle_course(self, obstacle_block, line, line_markers):
-        print('Folowing: ', line)
-        new_idx = line
-        self.bot.setServoPosition(0)
-        # Get the parameters of the largest block
-        block = self.cam.isInView(line)
-        self.getBlockParams(block)
-        # Calculate the error corresponding to the offset (offset ~ 22)
-        CL_angular_error = self.blockAngle[-1]
-        #print(CL_angular_error)
-        # Account for the rotation of the camera
-        servo_pos = 0
-        camera_rotation = -(servo_pos/50) * 25
-        #camera_rotation = -(servo_pos)
-        angle = CL_angular_error + camera_rotation
-        
-        steering = angle/(self.cam.pixyY_FoV)# + 0.01*(angle-old_error)
-        
-        
-        
-        ## Obstacle stuff
-        #print('Obstacle block id: ', obstacle_block)
-        if obstacle_block >=0:
-            self.getBlockParams(obstacle_block)
-            self.getBlockParams(obstacle_block)
-            R = 2
-            F = 300
-            obstacle_size = self.pixelSize[-1]
-            distance = 2*R*F/obstacle_size
-            if distance <= 24: 
-                if line ==2: 
-                    print('Turning right')
-                    self.drive(0.5, 0.4, 0.3)
-                    self.drive(0.5, 0, 0.2)
-                    new_idx = 4
-                    print('done')
-                    
-                else:
-                    print('Turning left')
-                    self.drive(0.5, -0.2, 0.3)
-                    self.drive(0.5, 0, 0.2)
-                    new_idx = 2
-                    print('done')
-        else:
-            print('No obstacle')
-            
-            
-                
-        
-        return new_idx, steering
        
     # main function that will be running during the robot race
     # goal: Given the recorded input parameters from the camera, finish the specific race track as quickly as possible without making any mistakes (e.g. going of track, stopping ...)    
@@ -218,7 +163,7 @@ class robotRace(object):
         i = 0
         scan = True
         reverse = True
-        line = self.leftLineID
+        line = 0 #zero for blue, 1 for purple
         names = ['center', 'left', 'right']
         try: 
             while True:
@@ -227,32 +172,54 @@ class robotRace(object):
                 centerLineBlock = self.cam.isInView(self.centerLineID) # try find centreline
                 leftLineBlock = self.cam.isInView(self.leftLineID)
                 rightLineBlock = self.cam.isInView(self.rightLineID)
-                obstacleBlock =  self.cam.isInView(self.obstacleID)
                 obstacleStartBlock = self.cam.isInView(self.entranceID)
-                
+                obstacleBlock = self.cam.isInView(self.obstacleID) 
+
                 color_ids = [self.centerLineID, self.leftLineID, self.rightLineID] 
                 line_markers = [centerLineBlock, leftLineBlock, rightLineBlock]
                 
                 # Find which color box is the biggest
                 largest_idx = self.largest_block(centerLineBlock, leftLineBlock, rightLineBlock)
-                
+            
+                if obstacleStartBlock >=0:
+                    if line == 0 and leftLineBlock >=0:
+                        self.bot.setServoPosition(0)
+                        # Get the parameters of the largest block
+                        self.getBlockParams(leftLineBlock)
+                        # Calculate the error corresponding to the offset (offset ~ 22)
+                        CL_angular_error = self.blockAngle[-1]
+                        
+                        # Account for the rotation of the camera
+                        camera_rotation = -(servo_pos/50) * 25
+                        angle = CL_angular_error + camera_rotation
+                        lineSteering = angle * 0.015
+                    elif line==1 and rightLineBlock >= 0:
+                        self.bot.setServoPosition(0)
+                        # Get the parameters of the largest block
+                        self.getBlockParams(rightLineBlock)
+                        # Calculate the error corresponding to the offset (offset ~ 22)
+                        CL_angular_error = self.blockAngle[-1]
+                        
+                        # Account for the rotation of the camera
+                        camera_rotation = -(servo_pos/50) * 25
+                        angle = CL_angular_error + camera_rotation
+                        lineSteering = angle * 0.01
+                    else:
+                        self.bot.setServoPosition(0)
+                        # Get the parameters of the largest block
+                        self.getBlockParams(obstacleStartBlock)
+                        # Calculate the error corresponding to the offset (offset ~ 22)
+                        CL_angular_error = self.blockAngle[-1]
+                        
+                        # Account for the rotation of the camera
+                        camera_rotation = -(servo_pos/50) * 25
+                        angle = CL_angular_error + camera_rotation
+                        lineSteering = angle * 0.01
+                    lineSteering = lineSteering
+                    speed_input = speed
+                    self.obstacleCourse = True
                 # There are no markers if largest_idx = -1, otherwise largest_idx = 0 or 1 or 2
-               # if obstacleStartBlock >= 0:
-               #     self.bot.setServoPosition(0)
-                    # Get the parameters of the largest block
-               #     self.getBlockParams(obstacleStartBlock)
-                    # Calculate the error corresponding to the offset (offset ~ 22)
-               #     CL_angular_error = self.blockAngle[-1]
-                    
-                    # Account for the rotation of the camera
-                #    camera_rotation = -(servo_pos/50) * 25
-                #    angle = CL_angular_error + camera_rotation
-                #    lineSteering = angle * 0.02
-                #    lineSteerng = lineSteering
-                #    speed_input = speed
-                #    self.obstacleCourse = True
-                
-                if largest_idx >= 0:
+                elif largest_idx >= 0 and self.obstacleCourse == False:
                     correction = 0
                     
                     # Find the offset for the side markers (needs to be measured)
@@ -276,64 +243,53 @@ class robotRace(object):
                     # Account for the rotation of the camera
                     camera_rotation = -(servo_pos/50) * 25
                     angle = CL_angular_error + camera_rotation
-                    lineSteering = angle * 0.02
+                    lineSteering = angle * 0.015
                     
-                    # Follow the red marker with the camera if it is present and is big enough
-                    if centerLineBlock >= 0 and (self.cam.newBlocks[centerLineBlock].m_width * self.cam.newBlocks[centerLineBlock].m_height)>1000:
+                    # Follow the red marker with the camera if it is present
+                    if line_markers[0] >= 0:
                         ang_err, servo_pos = self.visTrack(centerLineBlock)
+                    # Otherwise set the camera to center position
                     else:
                         servo_pos = self.bot.setServoPosition(0)
-                    
-                    width = self.cam.newBlocks[line_markers[largest_idx]].m_width
-                    
-                    # Speed modulation
-                    if width > 100:
-                        print('Max slowing down')
-                        speed_input = 0.4*speed
-                        #lineSteering = lineSteering *1.02
-                    elif width > 90:
-                        speed_input = 0.5*speed
-                    elif width > 70:
-                        speed_input = 0.6*speed
-                    elif width > 60:
-                        speed_input = 0.8*speed
-                        
-                    else:
-                        servo_pos = self.bot.setServoPosition(0)
-                    
-                    reverse = True
 
-                #elif self.obstacleCourse == True:
-                #    print('yay')
+                    reverse = True
+                    print('Following', names[largest_idx])
+                    #sleep(0.1) 
+                elif self.obstacleCourse == True:
+                    #Run the obstacle avoidance file
+                    servoCorrection = 0
+                    r = pixyBot(servoCorrection, PID_controller(0.06, 0, 0.06))
+                    p = pixyCam()
+                    oa = obstacleAvoidance(r, p)
+                    oa.avoidStationaryObstacles(0.6, line)
+                    speed_input = speed
+                    self.obstacleCourse=False
                     # Do obstacle stuffs
-                #    new_idx, lineSteering = self.obstacle_course(obstacleBlock, line, line_markers)
-                #    line = new_idx
-                #    speed_input = speed
-                #    if centerLineBlock >= 0:
-                #        self.obstacleCourse = False
+                    #obst_line_idx, lineSteering = self.obstacle_course(obstacleBlock, largest_idx, line_markers)
+                    #speed_input = speed
+                    #if centerLineBlock >= 0:
+                    #    self.obstacleCourse = False
                 else:
-                    print("cannot see anything")
+                    print('seeing nothing')
                     speed_input,lineSteering = 0,0
+
                     self.bot.setServoPosition(scanPos)
                     if scan == True :
-                        scanPos = scanPos + 10
-                       # self.drive(0, 0, 0.1)
+                        
+                        scanPos = scanPos + 4
                     elif scan == False:
-                        scanPos = scanPos - 10
-                       # self.drive(0, 0, 0.1)
+                        scanPos = scanPos - 4
+
                     if scanPos > 60:
-                        scan = False
+                        scan = False 
                     elif scanPos < -60:
                         scan = True
+                
                     i += 1
-                    #if i > 200 :
-                    #    i=0
-                    #    self.drive(0.5, 0, 0.3)
-                    #    print("drive forward")
-                    print(i)
-
+                    
+                        
                 self.drive(speed_input, lineSteering)
-
+                
         except KeyboardInterrupt:
             print("ended")
             self.bot.setServoPosition(0)
@@ -361,4 +317,4 @@ class robotRace(object):
     def avg(self, data, n):
         # average the last 5 elements
         avg = sum(data[-n:])/len(data[-n:])
-        return
+        
